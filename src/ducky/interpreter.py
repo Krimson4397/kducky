@@ -7,12 +7,15 @@ from __future__ import annotations
 from ducky.ast import (
     AssignStmt,
     BinaryOp,
+    BreakStmt,
+    ContinueStmt,
     DefaultCharDelayStmt,
     DefaultDelayStmt,
     DelayStmt,
     DollarIdentifierExpr,
     Expr,
     GroupExpr,
+    IfStmt,
     IntegerExpr,
     RepeatStmt,
     ResetStmt,
@@ -23,6 +26,7 @@ from ducky.ast import (
     StringExpr,
     UnaryOp,
     VarDef,
+    WhileStmt,
 )
 from ducky.platform import PlatformInterface
 from ducky.tokens import Operator
@@ -31,6 +35,14 @@ from ducky.utils.visitor import NodeVisitor
 
 class InterpreterError(Exception):
     """Runtime error during payload execution."""
+
+
+class _BreakSignal(BaseException):
+    """Internal signal to exit the innermost WHILE loop."""
+
+
+class _ContinueSignal(BaseException):
+    """Internal signal to skip to the next WHILE iteration."""
 
 
 class Interpreter(NodeVisitor):
@@ -42,6 +54,7 @@ class Interpreter(NodeVisitor):
         self._default_delay: int = 0
         self._default_char_delay: int = 0
         self._last_stmt: Stmt | None = None
+        self._loop_depth: int = 0
 
     def interpret(self, script: Script) -> None:
         """Execute a parsed Script against the platform."""
@@ -62,6 +75,9 @@ class Interpreter(NodeVisitor):
             for _ in range(count):
                 self.visit(self._last_stmt)
                 self._apply_default_delay()
+        elif isinstance(stmt, (BreakStmt, ContinueStmt)):
+            self.visit(stmt)
+            # Do NOT track as _last_stmt — loop controls aren't repeatable
         else:
             self.visit(stmt)
             self._last_stmt = stmt
@@ -112,6 +128,48 @@ class Interpreter(NodeVisitor):
 
     def visit_RestartPayloadStmt(self, node: RestartPayloadStmt) -> None:
         self.platform.restart_payload()
+
+    # ── Control flow ──────────────────────────────────────────────────
+
+    def visit_IfStmt(self, node: IfStmt) -> None:
+        """Conditional branch with optional else/else-if."""
+        if self._eval_expr(node.condition) != 0:
+            for stmt in node.body:
+                self._visit_statement(stmt)
+        elif node.else_body is not None:
+            # ELSE IF is represented as a single IfStmt in else_body
+            if len(node.else_body) == 1 and isinstance(node.else_body[0], IfStmt):
+                self.visit_IfStmt(node.else_body[0])
+            else:
+                for stmt in node.else_body:
+                    self._visit_statement(stmt)
+
+    def visit_WhileStmt(self, node: WhileStmt) -> None:
+        """Pre-check loop: repeat body while condition is truthy."""
+        self._loop_depth += 1
+        try:
+            while self._eval_expr(node.condition) != 0:
+                try:
+                    for stmt in node.body:
+                        self._visit_statement(stmt)
+                except _ContinueSignal:
+                    continue
+        except _BreakSignal:
+            pass
+        finally:
+            self._loop_depth -= 1
+
+    def visit_BreakStmt(self, node: BreakStmt) -> None:
+        """Exit the innermost WHILE loop."""
+        if self._loop_depth == 0:
+            raise InterpreterError("BREAK outside WHILE loop")
+        raise _BreakSignal()
+
+    def visit_ContinueStmt(self, node: ContinueStmt) -> None:
+        """Skip to the next iteration of the innermost WHILE loop."""
+        if self._loop_depth == 0:
+            raise InterpreterError("CONTINUE outside WHILE loop")
+        raise _ContinueSignal()
 
     # ── Expression evaluation ──────────────────────────────────────────
 

@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M7 complete. M8 — Desktop Platform API is next.  
+**Current status:** M9 complete. M10 — Interpreter: Control Flow is next.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -154,46 +154,47 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.1.0 (alpha)                    |
-| Completed Milestone   | M8 — Desktop Platform API        |
+| Completed Milestone   | M9 — Interpreter Core            |
 | Current Branch        | main                             |
-| Last Commit           | `7edf3e0`                        |
+| Last Commit           | `be09601`                        |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M9 — Interpreter Core            |
+| Next Milestone        | M10 — Interpreter: Control Flow  |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-- `src/ducky/platform/__init__.py` — `PlatformInterface` protocol (`@runtime_checkable`), `PayloadSignal`/`StopPayloadSignal`/`RestartPayloadSignal` exceptions, `__all__`
-- `src/ducky/platform/desktop.py` — `DesktopPlatform` mock that records all calls to `self.calls` and string output to `self.output`
-- `tests/test_platform.py` — 29 test methods covering every protocol method, protocol structural typing check, call ordering, delay non-blocking verification, payload signal raising, random int range, lock key defaults, and edge cases
+- `src/ducky/interpreter.py` — `Interpreter` (extends `NodeVisitor`) with `interpret(script, platform)` method, expression evaluator for all operators (spec §4.2), variable storage, delay semantics, REPEAT, and payload control statements
+- `tests/test_interpreter_core.py` — 65 test methods covering variable declarations, assignment, expression evaluation (arithmetic, bitwise, comparison, logical, unary, grouping), error conditions (div/0, mod/0, undeclared variables), delay statements, REPEAT semantics, payload control, and default delay inter-statement timing
 
 ### Files Modified
 
-- `AGENTS.md` — Session handoff updated to M8
+- `AGENTS.md` — Session handoff updated to M9
 
 ### Tests Executed
 
-- `pytest tests/test_platform.py` — 29 passed in 0.05s
-- `pytest tests/` — 366 passed (29 platform + 146 parser + 77 lexer + 59 AST + 46 tokens + 9 ast edge cases) in 0.29s
-- `ruff check src/ducky/platform/ tests/test_platform.py` — All checks passed
-- `mypy src/` — Success: no issues found in 13 source files
+- `pytest tests/test_interpreter_core.py` — 65 passed in 0.12s
+- `pytest tests/` — 431 passed (65 interpreter + 366 existing) in 0.41s
+- `ruff check src/ducky/interpreter.py tests/test_interpreter_core.py` — All checks passed
+- `mypy src/ducky/interpreter.py` — Success: no issues found
 
 ### Acceptance Criteria Completed
 
-- [x] `PlatformInterface` protocol defined with all methods matching spec §6.2 (flat protocol, methods directly on interface)
-- [x] Protocol decorated with `@runtime_checkable` — `isinstance(platform, PlatformInterface)` works at runtime
-- [x] Signal exceptions (`StopPayloadSignal`, `RestartPayloadSignal`) defined and raised by `DesktopPlatform`
-- [x] `DesktopPlatform` satisfies the protocol (confirmed by `isinstance` test)
-- [x] All platform methods record calls to `self.calls` for test verification
-- [x] `delay_ms` records the call but does NOT actually sleep (verified with `time.monotonic`)
-- [x] `random_int` returns values in the correct range and records the call
-- [x] No imports from CircuitPython or hardware libraries
-- [x] All 366 tests pass, ruff clean, mypy clean
+- [x] `VAR $x = 42` stores and retrieves the value
+- [x] `VAR $x` without initializer defaults to 0
+- [x] `$x = $x + 1` reads, increments, stores
+- [x] `4 + 3 * 2` evaluates to 10 (correct precedence)
+- [x] `65535 + 1` wraps to 0
+- [x] `/ 0` and `% 0` produce runtime errors
+- [x] `DELAY 500` calls `platform.delay_ms(500)`
+- [x] `DEFAULTDELAY 100` causes subsequent statements to call `delay_ms(100)` after execution
+- [x] `REPEAT 3` repeats the immediately preceding statement 3 extra times
+- [x] Undeclared variable access produces an error
+- [x] All 431 tests pass, ruff clean, mypy clean
 
 ### Remaining Milestones
 
-Milestones 9–20 from the implementation roadmap.
+Milestones 10–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -211,9 +212,9 @@ None.
 
 ### Notes for the Next Session
 
-Milestone 8 is complete. The platform layer is ready: a `PlatformInterface` protocol with every method the interpreter will call, and a `DesktopPlatform` mock that records all calls to an in-memory list. This is the foundation the interpreter (M9) will use for test verification.
+Milestone 9 is complete. The interpreter core can now execute DuckyScript programs on the desktop platform mock: variable storage, expression evaluation with all operators (spec §4.2), delay management, REPEAT, and payload control. The interpreter uses the NodeVisitor pattern and drives the `PlatformInterface` protocol.
 
-The next milestone (M9 — Interpreter Core) depends on M4 (AST), M6 (Parser), and M8 (this milestone). It implements the interpreter: variable storage, expression evaluation, and basic statement execution on the desktop platform mock.
+The next milestone (M10 — Interpreter: Control Flow) depends on M9 (this milestone). It adds IF/ELSE IF/ELSE, WHILE, BREAK, and CONTINUE to the interpreter.
 
 ---
 
@@ -227,7 +228,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 8 — Desktop Platform API.
+5. Resume from Milestone 10 — Interpreter: Control Flow.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
