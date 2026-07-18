@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M11 complete. M12 — Interpreter: Keyboard Commands is next.  
+**Current status:** M12 complete. M13 — Interpreter: Integration Tests is next.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -154,49 +154,38 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.1.0 (alpha)                    |
-| Completed Milestone   | M12 — Interpreter: Keyboard Commands |
+| Completed Milestone   | M13 — Interpreter: Integration Tests |
 | Current Branch        | main                             |
-| Last Commit           | `d3cefb7`                        |
+| Last Commit           | `d970549`                        |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M13 — Interpreter: Integration Tests |
+| Next Milestone        | M14 — Pico Platform Implementation |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-- `tests/test_interpreter_keyboard.py` — 23 test methods covering STRING, STRINGLN, single key press, modifier combos (CTRL SHIFT ESC), HOLD/RELEASE, INJECT_MOD, RANDOM_CHAR (6 variants), error-path key release, default delay interaction, and mixed call ordering
+- `tests/test_integration.py` — 21 integration test methods running full payloads end-to-end through the pipeline (lexer → parser → interpreter → DesktopPlatform mock), covering: STRING/STRINGLN, DELAY with variables, IF/ELSE, WHILE loops, functions, modifier combos, HOLD/RELEASE, RANDOM_CHAR, default delay semantics, nested control flow, and error diagnostics
 
 ### Files Modified
 
-- `src/ducky/interpreter.py` — Added `_KEYBOARD_STMTS` tuple, `_type_text()` helper, 8 visitor methods (`visit_StringStmt`, `visit_StringLnStmt`, `visit_KeyStmt`, `visit_ComboStmt`, `visit_HoldStmt`, `visit_ReleaseStmt`, `visit_InjectModStmt`, `visit_RandomStmt`); wrapped keyboard statements in try/except with `release_all()` on error for spec §5.3 compliance; added DELAY 20ms minimum clamping per spec §5.4; narrowed RANDOM_SPECIAL to spec's 10-char set `!@#$%^&*()`
-- `tests/test_interpreter_keyboard.py` — 23 keyboard tests
-- `tests/test_interpreter_core.py` — Added DELAY minimum clamp test
-- `tests/test_interpreter_control_flow.py` — Updated DELAY values from 10 to 100 to avoid clamping interference
-- `AGENTS.md` — Session handoff updated to M12
+- `AGENTS.md` — Session handoff updated to M13
 
 ### Tests Executed
 
-- `pytest tests/test_interpreter_keyboard.py` — 23 passed
-- `pytest tests/` — 517 passed (23 keyboard + 29 control flow + 66 interpreter core + 30 functions + 366 existing + 3 other)
+- `pytest tests/test_integration.py -v` — 21 passed
+- `pytest tests/` — 538 passed (21 integration + 23 keyboard + 29 control flow + 66 interpreter core + 33 functions + 366 existing) in 0.46s
 - `ruff check src/ tests/` — All checks passed
 
 ### Acceptance Criteria Completed
 
-- [x] `STRING hello` calls `platform.type_string("hello")`
-- [x] `STRINGLN hello` types text then presses ENTER
-- [x] `CTRL SHIFT ESC` presses CTRL → SHIFT → ESC via `press_key()`
-- [x] `HOLD a` / `DELAY 1000` / `RELEASE a` holds then releases
-- [x] `RANDOM_CHAR` types one random printable character
-- [x] `INJECT_MOD` releases all held keys
-- [x] Character delay is respected between keystrokes when `DEFAULTCHARDELAY` is set
-- [x] Error path releases all keys before propagating
-- [x] DELAY values below 20ms are clamped to 20ms (spec §5.4)
-- [x] RANDOM_SPECIAL uses spec character set `!@#$%^&*()`
-- [x] All 517 tests pass, ruff clean
+- [x] Minimum 10 integration payloads tested end-to-end (21 total)
+- [x] Each payload produces the expected sequence of platform events
+- [x] Error paths produce correct diagnostics
+- [x] All 538 tests pass, ruff clean
 
 ### Remaining Milestones
 
-Milestones 13–20 from the implementation roadmap.
+Milestones 14–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -214,9 +203,9 @@ None.
 
 ### Notes for the Next Session
 
-Milestone 12 is complete. All keyboard commands from spec §5.3 are implemented: STRING, STRINGLN, modifier combos, HOLD/RELEASE, INJECT_MOD, RANDOM_CHAR (6 variants), and single key press. Key release on error path (§5.3) is handled via try/except wrapping in `_visit_statement`. Character delay is applied per-character when `DEFAULTCHARDELAY` is set. DELAY minimum clamping (20ms) per spec §5.4. `RANDOM_SPECIAL` narrowed to spec's 10-character set.
+Milestone 13 is complete. The integration test file `tests/test_integration.py` contains 21 end-to-end tests covering the full pipeline. All major DuckyScript features are tested as realistic multi-statement payloads: text typing, delays, variables, IF/ELSE, WHILE loops, functions, modifier combos, HOLD/RELEASE, random chars, default delay semantics, and nested control flow. Error paths verify diagnostics for undefined variables.
 
-The next milestone (M13 — Interpreter: Integration Tests) depends on M9, M10, M11, M12. It runs full payloads end-to-end through the interpreter on the desktop mock.
+The next milestone (M14 — Pico Platform Implementation) depends on M8. It implements the hardware-specific platform backends for the Raspberry Pi Pico 2 W running CircuitPython.
 
 ---
 
@@ -230,7 +219,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 13 — Interpreter: Integration Tests.
+5. Resume from Milestone 14 — Pico Platform Implementation.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
