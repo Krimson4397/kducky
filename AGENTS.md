@@ -154,42 +154,46 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.1.0 (alpha)                    |
-| Completed Milestone   | M7 — Parser Tests (Expanded)     |
+| Completed Milestone   | M8 — Desktop Platform API        |
 | Current Branch        | main                             |
-| Last Commit           | `f41fe6f`                        |
+| Last Commit           | `7edf3e0`                        |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M8 — Desktop Platform API        |
+| Next Milestone        | M9 — Interpreter Core            |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-None (no new files)
+- `src/ducky/platform/__init__.py` — `PlatformInterface` protocol (`@runtime_checkable`), `PayloadSignal`/`StopPayloadSignal`/`RestartPayloadSignal` exceptions, `__all__`
+- `src/ducky/platform/desktop.py` — `DesktopPlatform` mock that records all calls to `self.calls` and string output to `self.output`
+- `tests/test_platform.py` — 29 test methods covering every protocol method, protocol structural typing check, call ordering, delay non-blocking verification, payload signal raising, random int range, lock key defaults, and edge cases
 
 ### Files Modified
 
-- `tests/test_parser.py` — Added 45 new parser test methods across 5 new test classes (statement edge cases, expression edge cases, error edge cases, full program edge cases, NodeVisitor edge cases)
+- `AGENTS.md` — Session handoff updated to M8
 
 ### Tests Executed
 
-- `pytest tests/test_parser.py` — 146 passed (99 original + 45 new) in 0.16s
-- `pytest tests/` — 334 passed (146 parser + 77 lexer + 59 AST + 46 tokens + 6 ast edge cases) in 0.31s
-- `ruff check src/ tests/` — All checks passed
-- `mypy src/ducky/parser.py` — Success: no issues found
+- `pytest tests/test_platform.py` — 29 passed in 0.05s
+- `pytest tests/` — 366 passed (29 platform + 146 parser + 77 lexer + 59 AST + 46 tokens + 9 ast edge cases) in 0.29s
+- `ruff check src/ducky/platform/ tests/test_platform.py` — All checks passed
+- `mypy src/` — Success: no issues found in 13 source files
 
 ### Acceptance Criteria Completed
 
-- [x] Minimum 40 test cases (45 added)
-- [x] Every statement type tested with valid input (includes delay zero, combo with GUI/ALT, hold, empty bodies, F-keys)
-- [x] Every error condition tested with valid diagnostic (missing END_IF/WHILE/FUNCTION/EXTENSION, REPEAT after END_FUNCTION, DEFINE without #, mismatched block closers)
-- [x] Expression precedence verified with multiple test cases (hex, unary on groups, double unary, power/chained associativity, modulo, $var reference)
-- [x] Full program edge cases (comments-only, defines-only, deep nesting, function call chains, CRLF)
-- [x] NodeVisitor edge cases (return values, child traversal, unknown node fallback)
-- [x] All 334 tests pass, ruff clean, mypy clean
+- [x] `PlatformInterface` protocol defined with all methods matching spec §6.2 (flat protocol, methods directly on interface)
+- [x] Protocol decorated with `@runtime_checkable` — `isinstance(platform, PlatformInterface)` works at runtime
+- [x] Signal exceptions (`StopPayloadSignal`, `RestartPayloadSignal`) defined and raised by `DesktopPlatform`
+- [x] `DesktopPlatform` satisfies the protocol (confirmed by `isinstance` test)
+- [x] All platform methods record calls to `self.calls` for test verification
+- [x] `delay_ms` records the call but does NOT actually sleep (verified with `time.monotonic`)
+- [x] `random_int` returns values in the correct range and records the call
+- [x] No imports from CircuitPython or hardware libraries
+- [x] All 366 tests pass, ruff clean, mypy clean
 
 ### Remaining Milestones
 
-Milestones 8–20 from the implementation roadmap.
+Milestones 9–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -197,19 +201,19 @@ None.
 
 ### Technical Debt
 
-None.
+- `DesktopPlatform.restore_attack_mode()` is a no-op on desktop (marked `# ponytail:`). A real Pico backend would restore actual HID state. Add when M14 (Pico Platform) is implemented.
 
 ### Assumptions Made
 
-- No line/column position tracking on AST nodes — source position is derived from token positions at parse time (consistent with the roadmap note added in M5)
-- ELSE IF chains are represented as nested IfStmt nodes in the else_body field (no separate ElseIfStmt)
-- Method names in grammar (Identifier) are treated as IdentifierExpr nodes; function calls (Identifier + ()) produce CallStmt/CallExpr
+- Flat `PlatformInterface` protocol (all methods directly on the protocol) rather than the hierarchical sub-backend structure in spec §6.1. The spec shows sub-backends as a logical grouping; the protocol follows the flat interface that the interpreter actually calls. This matches the general pattern used in the interpreter where it calls methods directly on the platform object.
+- `DesktopPlatform` does NOT explicitly inherit from `PlatformInterface` — it satisfies the protocol structurally, which is the idiomatic Python Protocol pattern.
+- `press_key` signature uses `tuple[object, ...]` for modifiers to accept any iterable of modifier identifiers (strings).
 
 ### Notes for the Next Session
 
-Milestone 7 is complete. The parser test suite expanded from 99 to 146 tests (+45), covering edge cases the basic tests missed: statement boundaries (zero delay, empty bodies), expression corner cases (hex literals, double unary, associativity), error conditions for unterminated blocks and mismatched closers, full programs with comments/defines/deep nesting, and NodeVisitor return value propagation.
+Milestone 8 is complete. The platform layer is ready: a `PlatformInterface` protocol with every method the interpreter will call, and a `DesktopPlatform` mock that records all calls to an in-memory list. This is the foundation the interpreter (M9) will use for test verification.
 
-The next milestone (M8 — Desktop Platform API) depends on M1 (scaffold only — no language modules). It defines PlatformInterface protocols and desktop mock backends. This unblocks M9 (Interpreter Core).
+The next milestone (M9 — Interpreter Core) depends on M4 (AST), M6 (Parser), and M8 (this milestone). It implements the interpreter: variable storage, expression evaluation, and basic statement execution on the desktop platform mock.
 
 ---
 
