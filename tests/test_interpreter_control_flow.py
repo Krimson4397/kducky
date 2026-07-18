@@ -369,7 +369,7 @@ class TestWhileStmt:
                     DollarIdentifierExpr("i"), Operator.GREATER, IntegerExpr(0),
                 ),
                 body=(
-                    DelayStmt(IntegerExpr(10)),
+                    DelayStmt(IntegerExpr(100)),
                     AssignStmt(
                         "i",
                         BinaryOp(DollarIdentifierExpr("i"), Operator.SUBTRACT, IntegerExpr(1)),
@@ -378,11 +378,11 @@ class TestWhileStmt:
             ),
         ))
         interpreter.interpret(script)
-        # 2 iterations * 1 delay each = 2 delay_ms(10) calls
+        # 2 iterations * 1 delay each = 2 delay_ms(100) calls
         delay_calls = [c for c in platform.calls if c[0] == "delay_ms"]
         assert len(delay_calls) == 2
         for call in delay_calls:
-            assert call == ("delay_ms", 10)
+            assert call == ("delay_ms", 100)
 
 
 class TestBreakStmt:
@@ -737,7 +737,7 @@ class TestControlFlowDefaultDelay:
         interpreter = Interpreter(platform)
         # DEFAULTDELAY 30
         # $i = 2
-        # WHILE $i > 0: DELAY 10; $i = $i - 1; END_WHILE
+        # WHILE $i > 0: DELAY 100; $i = $i - 1; END_WHILE
         # VAR $z = 1
         script = Script((
             DefaultDelayStmt(IntegerExpr(30)),
@@ -747,7 +747,7 @@ class TestControlFlowDefaultDelay:
                     DollarIdentifierExpr("i"), Operator.GREATER, IntegerExpr(0),
                 ),
                 body=(
-                    DelayStmt(IntegerExpr(10)),
+                    DelayStmt(IntegerExpr(100)),
                     AssignStmt(
                         "i",
                         BinaryOp(DollarIdentifierExpr("i"), Operator.SUBTRACT, IntegerExpr(1)),
@@ -762,18 +762,18 @@ class TestControlFlowDefaultDelay:
         #   DefaultDelayStmt: excluded
         #   VarDef i: default delay 30
         #   WHILE:
-        #     iter 1: delay_ms(10), then default delay 30 (after AssignStmt i)
-        #     iter 2: delay_ms(10), then default delay 30 (after AssignStmt i)
+        #     iter 1: delay_ms(100), then default delay 30 (after AssignStmt i)
+        #     iter 2: delay_ms(100), then default delay 30 (after AssignStmt i)
         #   After WHILE: default delay 30
         #   VarDef z: default delay 30
         assert len(delay_calls) == 7
         # First is default delay after VarDef i
         assert delay_calls[0] == ("delay_ms", 30)
-        # Iteration 1: explicit 10 then default 30
-        assert delay_calls[1] == ("delay_ms", 10)
+        # Iteration 1: explicit 100 then default 30
+        assert delay_calls[1] == ("delay_ms", 100)
         assert delay_calls[2] == ("delay_ms", 30)
-        # Iteration 2: explicit 10 then default 30
-        assert delay_calls[3] == ("delay_ms", 10)
+        # Iteration 2: explicit 100 then default 30
+        assert delay_calls[3] == ("delay_ms", 100)
         assert delay_calls[4] == ("delay_ms", 30)
         # After WHILE completes: default delay 30
         assert delay_calls[5] == ("delay_ms", 30)

@@ -154,44 +154,49 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.1.0 (alpha)                    |
-| Completed Milestone   | M11 — Interpreter: Functions     |
+| Completed Milestone   | M12 — Interpreter: Keyboard Commands |
 | Current Branch        | main                             |
-| Last Commit           | `42ca4e6`                        |
+| Last Commit           | `1dbdd8c`                        |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M12 — Interpreter: Keyboard Commands |
+| Next Milestone        | M13 — Interpreter: Integration Tests |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-- `tests/test_interpreter_functions.py` — 33 test methods covering FUNCTION/END_FUNCTION, RETURN, function calls as statements and expressions, local variable scoping, recursion, undefined function errors, and interaction with REPEAT and default delay
+- `tests/test_interpreter_keyboard.py` — 23 test methods covering STRING, STRINGLN, single key press, modifier combos (CTRL SHIFT ESC), HOLD/RELEASE, INJECT_MOD, RANDOM_CHAR (6 variants), error-path key release, default delay interaction, and mixed call ordering
 
 ### Files Modified
 
-- `src/ducky/interpreter.py` — Added `_ReturnSignal`, `_functions` registry, `_locals` stack, two-phase `visit_Script`, `visit_CallStmt`, `visit_CallExpr`, `visit_ReturnStmt`; updated `_visit_statement` for ReturnStmt tracking; updated variable resolution for local scopes
-- `AGENTS.md` — Session handoff updated to M11
+- `src/ducky/interpreter.py` — Added `_KEYBOARD_STMTS` tuple, `_type_text()` helper, 8 visitor methods (`visit_StringStmt`, `visit_StringLnStmt`, `visit_KeyStmt`, `visit_ComboStmt`, `visit_HoldStmt`, `visit_ReleaseStmt`, `visit_InjectModStmt`, `visit_RandomStmt`); wrapped keyboard statements in try/except with `release_all()` on error for spec §5.3 compliance; added DELAY 20ms minimum clamping per spec §5.4; narrowed RANDOM_SPECIAL to spec's 10-char set `!@#$%^&*()`
+- `tests/test_interpreter_keyboard.py` — 23 keyboard tests
+- `tests/test_interpreter_core.py` — Added DELAY minimum clamp test
+- `tests/test_interpreter_control_flow.py` — Updated DELAY values from 10 to 100 to avoid clamping interference
+- `AGENTS.md` — Session handoff updated to M12
 
 ### Tests Executed
 
-- `pytest tests/test_interpreter_functions.py` — 33 passed in 0.06s
-- `pytest tests/` — 493 passed (33 functions + 29 control flow + 65 interpreter core + 366 existing) in 0.41s
+- `pytest tests/test_interpreter_keyboard.py` — 23 passed
+- `pytest tests/` — 517 passed (23 keyboard + 29 control flow + 66 interpreter core + 30 functions + 366 existing + 3 other)
 - `ruff check src/ tests/` — All checks passed
-- `mypy src/` — Success: no issues found in 14 source files
 
 ### Acceptance Criteria Completed
 
-- [x] `FUNCTION f() ... END_FUNCTION` then `f()` executes the body
-- [x] `RETURN 42` returns value to caller
-- [x] `RETURN` without value returns 0
-- [x] Recursive function calls work
-- [x] Function calls as expressions (`$x = f()`) return values
-- [x] Local variables don't leak to global scope
-- [x] Undefined function call → runtime error
-- [x] All 493 tests pass, ruff clean, mypy clean
+- [x] `STRING hello` calls `platform.type_string("hello")`
+- [x] `STRINGLN hello` types text then presses ENTER
+- [x] `CTRL SHIFT ESC` presses CTRL → SHIFT → ESC via `press_key()`
+- [x] `HOLD a` / `DELAY 1000` / `RELEASE a` holds then releases
+- [x] `RANDOM_CHAR` types one random printable character
+- [x] `INJECT_MOD` releases all held keys
+- [x] Character delay is respected between keystrokes when `DEFAULTCHARDELAY` is set
+- [x] Error path releases all keys before propagating
+- [x] DELAY values below 20ms are clamped to 20ms (spec §5.4)
+- [x] RANDOM_SPECIAL uses spec character set `!@#$%^&*()`
+- [x] All 517 tests pass, ruff clean
 
 ### Remaining Milestones
 
-Milestones 12–20 from the implementation roadmap.
+Milestones 13–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -209,9 +214,9 @@ None.
 
 ### Notes for the Next Session
 
-Milestone 11 is complete. The interpreter now supports function definition (`FUNCTION`/`END_FUNCTION`), `RETURN` with and without values, function calls as both statements and expressions, local variable scoping, and recursion. Function registration uses a two-phase `visit_Script` (first pass registers all functions, second pass executes statements). A `_locals` stack manages nested local scopes during function calls, and `_ReturnSignal` (a `BaseException` subclass) unwinds the call stack. `_last_stmt` tracking for REPEAT is disabled on `ReturnStmt` nodes.
+Milestone 12 is complete. All keyboard commands from spec §5.3 are implemented: STRING, STRINGLN, modifier combos, HOLD/RELEASE, INJECT_MOD, RANDOM_CHAR (6 variants), and single key press. Key release on error path (§5.3) is handled via try/except wrapping in `_visit_statement`. Character delay is applied per-character when `DEFAULTCHARDELAY` is set. DELAY minimum clamping (20ms) per spec §5.4. `RANDOM_SPECIAL` narrowed to spec's 10-character set.
 
-The next milestone (M12 — Interpreter: Keyboard Commands) depends on M9. It adds `STRING`, `STRINGLN`, modifier combos (`CTRL SHIFT ESC`), `HOLD`/`RELEASE`, `INJECT_MOD`, `RANDOM_CHAR`, single key press, and error-path key release semantics (spec §5.3).
+The next milestone (M13 — Interpreter: Integration Tests) depends on M9, M10, M11, M12. It runs full payloads end-to-end through the interpreter on the desktop mock.
 
 ---
 
@@ -225,7 +230,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 12 — Interpreter: Keyboard Commands.
+5. Resume from Milestone 13 — Interpreter: Integration Tests.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.

@@ -10,6 +10,7 @@ from ducky.ast import (
     BreakStmt,
     CallExpr,
     CallStmt,
+    ComboStmt,
     ContinueStmt,
     DefaultCharDelayStmt,
     DefaultDelayStmt,
@@ -18,8 +19,14 @@ from ducky.ast import (
     Expr,
     FunctionDef,
     GroupExpr,
+    HoldStmt,
     IfStmt,
+    InjectModStmt,
     IntegerExpr,
+    KeyStmt,
+    RandomStmt,
+    RandomType,
+    ReleaseStmt,
     RepeatStmt,
     ResetStmt,
     RestartPayloadStmt,
@@ -28,12 +35,14 @@ from ducky.ast import (
     Stmt,
     StopPayloadStmt,
     StringExpr,
+    StringLnStmt,
+    StringStmt,
     UnaryOp,
     VarDef,
     WhileStmt,
 )
 from ducky.platform import PlatformInterface
-from ducky.tokens import Operator
+from ducky.tokens import ActionKey, Operator
 from ducky.utils.visitor import NodeVisitor
 
 
@@ -99,7 +108,14 @@ class Interpreter(NodeVisitor):
             self.visit(stmt)
             # Do NOT track as _last_stmt — loop controls and return aren't repeatable
         else:
-            self.visit(stmt)
+            if isinstance(stmt, self._KEYBOARD_STMTS):
+                try:
+                    self.visit(stmt)
+                except BaseException:
+                    self.platform.release_all()
+                    raise
+            else:
+                self.visit(stmt)
             self._last_stmt = stmt
             self._apply_default_delay()
 
@@ -142,6 +158,7 @@ class Interpreter(NodeVisitor):
 
     def visit_DelayStmt(self, node: DelayStmt) -> None:
         ms = self._eval_expr(node.milliseconds)
+        ms = max(20, ms)
         self.platform.delay_ms(ms)
 
     def visit_DefaultDelayStmt(self, node: DefaultDelayStmt) -> None:
@@ -152,6 +169,68 @@ class Interpreter(NodeVisitor):
     def visit_DefaultCharDelayStmt(self, node: DefaultCharDelayStmt) -> None:
         ms = self._eval_expr(node.delay)
         self._default_char_delay = ms & 0xFFFF
+
+    # ── Keyboard commands ──────────────────────────────────────────────
+
+    _KEYBOARD_STMTS: tuple[type[Stmt], ...] = (
+        StringStmt, StringLnStmt, KeyStmt, ComboStmt,
+        HoldStmt, ReleaseStmt, InjectModStmt, RandomStmt,
+    )
+
+    def _type_text(self, text: str) -> None:
+        """Type text, respecting _default_char_delay."""
+        if self._default_char_delay > 0:
+            for ch in text:
+                self.platform.type_string(ch)
+                self.platform.delay_ms(self._default_char_delay)
+        else:
+            self.platform.type_string(text)
+
+    def visit_StringStmt(self, node: StringStmt) -> None:
+        self._type_text(node.text)
+
+    def visit_StringLnStmt(self, node: StringLnStmt) -> None:
+        self._type_text(node.text)
+        self.platform.press_key((), ActionKey.ENTER)
+
+    def visit_KeyStmt(self, node: KeyStmt) -> None:
+        self.platform.press_key((), node.key)
+
+    def visit_ComboStmt(self, node: ComboStmt) -> None:
+        self.platform.press_key(node.modifiers, node.key)
+
+    def visit_HoldStmt(self, node: HoldStmt) -> None:
+        self.platform.hold_key(node.key)
+
+    def visit_ReleaseStmt(self, node: ReleaseStmt) -> None:
+        self.platform.release_key(node.key)
+
+    def visit_InjectModStmt(self, node: InjectModStmt) -> None:
+        self.platform.release_all()
+
+    def visit_RandomStmt(self, node: RandomStmt) -> None:
+        rtype = node.random_type
+        if rtype == RandomType.CHAR:
+            n = self.platform.random_int(0x21, 0x7E)
+        elif rtype == RandomType.LOWERCASE_LETTER:
+            n = self.platform.random_int(0x61, 0x7A)
+        elif rtype == RandomType.UPPERCASE_LETTER:
+            n = self.platform.random_int(0x41, 0x5A)
+        elif rtype == RandomType.LETTER:
+            letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            idx = self.platform.random_int(0, len(letters) - 1)
+            self.platform.type_string(letters[idx])
+            return
+        elif rtype == RandomType.NUMBER:
+            n = self.platform.random_int(0x30, 0x39)
+        elif rtype == RandomType.SPECIAL:
+            specials = "!@#$%^&*()"
+            idx = self.platform.random_int(0, len(specials) - 1)
+            self.platform.type_string(specials[idx])
+            return
+        else:
+            raise InterpreterError(f"Unknown RandomType: {rtype}")
+        self.platform.type_string(chr(n))
 
     # ── Payload control ────────────────────────────────────────────────
 

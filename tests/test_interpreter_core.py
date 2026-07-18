@@ -462,6 +462,16 @@ class TestDelayStatements:
         interpreter.interpret(script)
         assert ("delay_ms", 500) in platform.calls
 
+    def test_delay_minimum_clamp(self) -> None:
+        """DELAY 5 is clamped to minimum 20."""
+        platform = DesktopPlatform()
+        interpreter = Interpreter(platform)
+        script = Script((DelayStmt(IntegerExpr(5)),))
+        interpreter.interpret(script)
+        # Should be 20, not 5
+        delay_calls = [c for c in platform.calls if c[0] == "delay_ms"]
+        assert delay_calls[0] == ("delay_ms", 20)
+
     def test_delay_with_expression(self) -> None:
         """DELAY $x uses variable value."""
         platform = DesktopPlatform()
