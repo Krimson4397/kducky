@@ -156,7 +156,7 @@ This section **must** be updated at the completion of every milestone. It descri
 | Project Version       | 0.1.0 (alpha)                    |
 | Completed Milestone   | M11 — Interpreter: Functions     |
 | Current Branch        | main                             |
-| Last Commit           | `d650f48`                        |
+| Last Commit           | `42ca4e6`                        |
 | Repository Status     | Clean working tree               |
 | Next Milestone        | M12 — Interpreter: Keyboard Commands |
 | Blocking Issues       | None                             |
