@@ -189,7 +189,7 @@ None (no new files)
 
 ### Remaining Milestones
 
-Milestones 7–20 from the implementation roadmap.
+Milestones 8–20 from the implementation roadmap.
 
 ### Known Issues
 

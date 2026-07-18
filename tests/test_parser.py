@@ -61,8 +61,9 @@ from ducky.ast import (
     WhileStmt,
 )
 from ducky.lexer import DuckyLexer
-from ducky.parser import DuckyParser, NodeVisitor, ParseError
+from ducky.parser import DuckyParser, ParseError
 from ducky.tokens import ActionKey, ModifierKey, Operator
+from ducky.utils.visitor import NodeVisitor
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -950,6 +951,18 @@ class TestExpressionEdgeCases:
         assert expr.left.left.value == 2
         assert expr.left.right.value == 3
 
+    def test_power_precedence_vs_multiply(self) -> None:
+        """2 * 3 ^ 4 parses as (2 * 3) ^ 4 per spec §4.1 (same level, left-assoc)."""
+        script = parse("VAR $x = 2 * 3 ^ 4\n")
+        expr = script.statements[0].initializer
+        assert isinstance(expr, BinaryOp)
+        assert expr.operator == Operator.POWER
+        assert expr.right.value == 4
+        assert isinstance(expr.left, BinaryOp)
+        assert expr.left.operator == Operator.MULTIPLY
+        assert expr.left.left.value == 2
+        assert expr.left.right.value == 3
+
     def test_chained_comparison(self) -> None:
         """1 < 2 < 3 should parse as (1 < 2) < 3."""
         script = parse("VAR $x = 1 < 2 < 3\n")
@@ -1034,6 +1047,16 @@ class TestErrorEdgeCases:
         """Statement after REPEAT should be valid (REPEAT applies to preceding)."""
         script = parse("DELAY 100\nREPEAT 3\nRESET\n")
         assert len(script.statements) == 3
+
+    def test_hold_modifier_key_rejected(self) -> None:
+        """HOLD CTRL should fail — HOLD only accepts action keys per spec §2."""
+        with pytest.raises(ParseError):
+            parse("HOLD CTRL\n")
+
+    def test_release_modifier_key_rejected(self) -> None:
+        """RELEASE CTRL should fail — RELEASE only accepts action keys per spec §2."""
+        with pytest.raises(ParseError):
+            parse("RELEASE CTRL\n")
 
 
 # ── Additional full-program tests ─────────────────────────────────────────

@@ -66,6 +66,13 @@ from ducky.ast import (
     WhileStmt,
 )
 from ducky.tokens import ActionKey, ModifierKey, Operator, Token, TokenType
+from ducky.utils.visitor import NodeVisitor
+
+__all__ = [
+    "DuckyParser",
+    "NodeVisitor",
+    "ParseError",
+]
 
 # ── Public error type ────────────────────────────────────────────────────────
 
@@ -78,24 +85,6 @@ class ParseError(Exception):
         self.line = line
         self.column = column
         super().__init__(f"Line {line}, col {column}: {message}")
-
-
-# ── NodeVisitor ──────────────────────────────────────────────────────────────
-
-
-class NodeVisitor:
-    """Base class for AST visitors.
-
-    Subclass and define ``visit_ClassName`` methods for each node type.
-    Falls back to ``generic_visit`` for unhandled nodes.
-    """
-
-    def visit(self, node: object) -> object:
-        method = getattr(self, f"visit_{type(node).__name__}", self.generic_visit)
-        return method(node)
-
-    def generic_visit(self, node: object) -> object:
-        raise NotImplementedError(f"No visit method for {type(node).__name__}")
 
 
 # ── Token-to-enum mappings ───────────────────────────────────────────────────
@@ -608,6 +597,7 @@ class DuckyParser:
     def _parse_hold_stmt(self) -> HoldStmt:
         self._consume(TokenType.HOLD, "Expected HOLD")
         key_token = self._advance()
+        # Per spec §2 grammar: HOLD only accepts action keys (not modifiers).
         if key_token.type not in _ACTION_KEY_TOKEN_TYPES:
             raise ParseError(
                 f"Expected action key after HOLD. Got {key_token.type.name}",
@@ -622,6 +612,7 @@ class DuckyParser:
     def _parse_release_stmt(self) -> ReleaseStmt:
         self._consume(TokenType.RELEASE, "Expected RELEASE")
         key_token = self._advance()
+        # Per spec §2 grammar: RELEASE only accepts action keys (not modifiers).
         if key_token.type not in _ACTION_KEY_TOKEN_TYPES:
             raise ParseError(
                 f"Expected action key after RELEASE. Got {key_token.type.name}",
@@ -1093,7 +1084,12 @@ class DuckyParser:
         return expr
 
     def _parse_multiplicative(self) -> Expr:
-        """Level 11: multiplicative ``*`` ``/`` ``%`` ``^`` (left-associative)."""
+        """Level 11: multiplicative ``*`` ``/`` ``%`` ``^`` (left-associative).
+
+        Per spec §4.1: ``^`` (POWER/exponentiation) is at the multiplicative
+        precedence level alongside ``*``, ``/``, ``%``, all left-associative.
+        Example: ``2 * 3 ^ 4`` parses as ``(2 * 3) ^ 4``.
+        """
         expr = self._parse_unary()
         while self._match(
             TokenType.STAR, TokenType.SLASH, TokenType.PERCENT, TokenType.CARET
