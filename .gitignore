@@ -1,26 +1,28 @@
-# Project planning documents
-
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
 *.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
-
-# Virtual environments
+dist/
+build/
+.eggs/
+*.egg
 .venv/
 venv/
 env/
+*.so
 
-# IDEs
+# CircuitPython
+boot_out.txt
+
+# Tool caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# IDE
 .vscode/
 .idea/
 
-# OS files
+# OS
 .DS_Store
 Thumbs.db
