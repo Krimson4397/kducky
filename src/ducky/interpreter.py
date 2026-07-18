@@ -8,18 +8,22 @@ from ducky.ast import (
     AssignStmt,
     BinaryOp,
     BreakStmt,
+    CallExpr,
+    CallStmt,
     ContinueStmt,
     DefaultCharDelayStmt,
     DefaultDelayStmt,
     DelayStmt,
     DollarIdentifierExpr,
     Expr,
+    FunctionDef,
     GroupExpr,
     IfStmt,
     IntegerExpr,
     RepeatStmt,
     ResetStmt,
     RestartPayloadStmt,
+    ReturnStmt,
     Script,
     Stmt,
     StopPayloadStmt,
@@ -45,12 +49,22 @@ class _ContinueSignal(BaseException):
     """Internal signal to skip to the next WHILE iteration."""
 
 
+class _ReturnSignal(BaseException):
+    """Internal signal to exit a function with a return value."""
+
+    def __init__(self, value: int = 0) -> None:
+        self.value = value
+        super().__init__(value)
+
+
 class Interpreter(NodeVisitor):
     """AST-walking interpreter that drives a PlatformInterface."""
 
     def __init__(self, platform: PlatformInterface) -> None:
         self.platform = platform
         self._globals: dict[str, int] = {}
+        self._functions: dict[str, tuple[tuple[str, ...], tuple[Stmt, ...]]] = {}
+        self._locals: list[dict[str, int]] = []
         self._default_delay: int = 0
         self._default_char_delay: int = 0
         self._last_stmt: Stmt | None = None
@@ -63,8 +77,14 @@ class Interpreter(NodeVisitor):
     # ── Script (top-level) ─────────────────────────────────────────────
 
     def visit_Script(self, node: Script) -> None:
+        # Phase 1: register all FunctionDef nodes (forward references work)
         for stmt in node.statements:
-            self._visit_statement(stmt)
+            if isinstance(stmt, FunctionDef):
+                self._functions[stmt.name] = (stmt.params, stmt.body)
+        # Phase 2: execute all non-FunctionDef statements
+        for stmt in node.statements:
+            if not isinstance(stmt, FunctionDef):
+                self._visit_statement(stmt)
 
     def _visit_statement(self, stmt: Stmt) -> None:
         """Execute one statement and track it for REPEAT."""
@@ -75,9 +95,9 @@ class Interpreter(NodeVisitor):
             for _ in range(count):
                 self.visit(self._last_stmt)
                 self._apply_default_delay()
-        elif isinstance(stmt, (BreakStmt, ContinueStmt)):
+        elif isinstance(stmt, (BreakStmt, ContinueStmt, ReturnStmt)):
             self.visit(stmt)
-            # Do NOT track as _last_stmt — loop controls aren't repeatable
+            # Do NOT track as _last_stmt — loop controls and return aren't repeatable
         else:
             self.visit(stmt)
             self._last_stmt = stmt
@@ -95,13 +115,28 @@ class Interpreter(NodeVisitor):
 
     def visit_VarDef(self, node: VarDef) -> None:
         value = self._eval_expr(node.initializer)
-        self._globals[node.name] = value & 0xFFFF
+        target = self._locals[-1] if self._locals else self._globals
+        target[node.name] = value & 0xFFFF
 
     def visit_AssignStmt(self, node: AssignStmt) -> None:
+        value = self._eval_expr(node.value)
+        wrapped = value & 0xFFFF
+        if self._locals:
+            # Inside a function: check locals top-down, then globals
+            for scope in reversed(self._locals):
+                if node.name in scope:
+                    scope[node.name] = wrapped
+                    return
+            if node.name in self._globals:
+                self._globals[node.name] = wrapped
+                return
+            # Not found in any scope: create in innermost local scope
+            self._locals[-1][node.name] = wrapped
+            return
+        # Top level: require prior declaration
         if node.name not in self._globals:
             raise InterpreterError(f"Undeclared variable: ${node.name}")
-        value = self._eval_expr(node.value)
-        self._globals[node.name] = value & 0xFFFF
+        self._globals[node.name] = wrapped
 
     # ── Delay statements ───────────────────────────────────────────────
 
@@ -171,6 +206,44 @@ class Interpreter(NodeVisitor):
             raise InterpreterError("CONTINUE outside WHILE loop")
         raise _ContinueSignal()
 
+    # ── Functions ──────────────────────────────────────────────────────
+
+    def visit_CallStmt(self, node: CallStmt) -> None:
+        """Execute a function call as a statement (return value discarded)."""
+        if node.name not in self._functions:
+            raise InterpreterError(f"Undefined function: {node.name}()")
+        _params, body = self._functions[node.name]
+        self._locals.append({})
+        try:
+            for stmt in body:
+                self._visit_statement(stmt)
+        except _ReturnSignal:
+            pass
+        finally:
+            self._locals.pop()
+
+    def visit_CallExpr(self, node: CallExpr) -> int:
+        """Execute a function call as an expression (returns value)."""
+        if node.name not in self._functions:
+            raise InterpreterError(f"Undefined function: {node.name}()")
+        _params, body = self._functions[node.name]
+        self._locals.append({})
+        try:
+            for stmt in body:
+                self._visit_statement(stmt)
+        except _ReturnSignal as signal:
+            return signal.value & 0xFFFF
+        finally:
+            self._locals.pop()
+        return 0
+
+    def visit_ReturnStmt(self, node: ReturnStmt) -> None:
+        """Exit the current function, optionally returning a value."""
+        if not self._locals:
+            raise InterpreterError("RETURN outside function")
+        value = self._eval_expr(node.value) if node.value is not None else 0
+        raise _ReturnSignal(value & 0xFFFF)
+
     # ── Expression evaluation ──────────────────────────────────────────
 
     def _eval_expr(self, expr: Expr) -> int:
@@ -183,6 +256,10 @@ class Interpreter(NodeVisitor):
         raise InterpreterError("String literal not supported in expression context")
 
     def visit_DollarIdentifierExpr(self, node: DollarIdentifierExpr) -> int:
+        # Check local scopes top-down (innermost first)
+        for scope in reversed(self._locals):
+            if node.name in scope:
+                return scope[node.name]
         if node.name not in self._globals:
             raise InterpreterError(f"Undeclared variable: ${node.name}")
         return self._globals[node.name]

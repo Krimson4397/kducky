@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M9 complete. M10 — Interpreter: Control Flow is next.  
+**Current status:** M11 complete. M12 — Interpreter: Keyboard Commands is next.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -154,47 +154,44 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.1.0 (alpha)                    |
-| Completed Milestone   | M9 — Interpreter Core            |
+| Completed Milestone   | M11 — Interpreter: Functions     |
 | Current Branch        | main                             |
-| Last Commit           | `be09601`                        |
+| Last Commit           | `d650f48`                        |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M10 — Interpreter: Control Flow  |
+| Next Milestone        | M12 — Interpreter: Keyboard Commands |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-- `src/ducky/interpreter.py` — `Interpreter` (extends `NodeVisitor`) with `interpret(script, platform)` method, expression evaluator for all operators (spec §4.2), variable storage, delay semantics, REPEAT, and payload control statements
-- `tests/test_interpreter_core.py` — 65 test methods covering variable declarations, assignment, expression evaluation (arithmetic, bitwise, comparison, logical, unary, grouping), error conditions (div/0, mod/0, undeclared variables), delay statements, REPEAT semantics, payload control, and default delay inter-statement timing
+- `tests/test_interpreter_functions.py` — 33 test methods covering FUNCTION/END_FUNCTION, RETURN, function calls as statements and expressions, local variable scoping, recursion, undefined function errors, and interaction with REPEAT and default delay
 
 ### Files Modified
 
-- `AGENTS.md` — Session handoff updated to M9
+- `src/ducky/interpreter.py` — Added `_ReturnSignal`, `_functions` registry, `_locals` stack, two-phase `visit_Script`, `visit_CallStmt`, `visit_CallExpr`, `visit_ReturnStmt`; updated `_visit_statement` for ReturnStmt tracking; updated variable resolution for local scopes
+- `AGENTS.md` — Session handoff updated to M11
 
 ### Tests Executed
 
-- `pytest tests/test_interpreter_core.py` — 65 passed in 0.12s
-- `pytest tests/` — 431 passed (65 interpreter + 366 existing) in 0.41s
-- `ruff check src/ducky/interpreter.py tests/test_interpreter_core.py` — All checks passed
-- `mypy src/ducky/interpreter.py` — Success: no issues found
+- `pytest tests/test_interpreter_functions.py` — 33 passed in 0.06s
+- `pytest tests/` — 493 passed (33 functions + 29 control flow + 65 interpreter core + 366 existing) in 0.41s
+- `ruff check src/ tests/` — All checks passed
+- `mypy src/` — Success: no issues found in 14 source files
 
 ### Acceptance Criteria Completed
 
-- [x] `VAR $x = 42` stores and retrieves the value
-- [x] `VAR $x` without initializer defaults to 0
-- [x] `$x = $x + 1` reads, increments, stores
-- [x] `4 + 3 * 2` evaluates to 10 (correct precedence)
-- [x] `65535 + 1` wraps to 0
-- [x] `/ 0` and `% 0` produce runtime errors
-- [x] `DELAY 500` calls `platform.delay_ms(500)`
-- [x] `DEFAULTDELAY 100` causes subsequent statements to call `delay_ms(100)` after execution
-- [x] `REPEAT 3` repeats the immediately preceding statement 3 extra times
-- [x] Undeclared variable access produces an error
-- [x] All 431 tests pass, ruff clean, mypy clean
+- [x] `FUNCTION f() ... END_FUNCTION` then `f()` executes the body
+- [x] `RETURN 42` returns value to caller
+- [x] `RETURN` without value returns 0
+- [x] Recursive function calls work
+- [x] Function calls as expressions (`$x = f()`) return values
+- [x] Local variables don't leak to global scope
+- [x] Undefined function call → runtime error
+- [x] All 493 tests pass, ruff clean, mypy clean
 
 ### Remaining Milestones
 
-Milestones 10–20 from the implementation roadmap.
+Milestones 12–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -212,9 +209,9 @@ None.
 
 ### Notes for the Next Session
 
-Milestone 9 is complete. The interpreter core can now execute DuckyScript programs on the desktop platform mock: variable storage, expression evaluation with all operators (spec §4.2), delay management, REPEAT, and payload control. The interpreter uses the NodeVisitor pattern and drives the `PlatformInterface` protocol.
+Milestone 11 is complete. The interpreter now supports function definition (`FUNCTION`/`END_FUNCTION`), `RETURN` with and without values, function calls as both statements and expressions, local variable scoping, and recursion. Function registration uses a two-phase `visit_Script` (first pass registers all functions, second pass executes statements). A `_locals` stack manages nested local scopes during function calls, and `_ReturnSignal` (a `BaseException` subclass) unwinds the call stack. `_last_stmt` tracking for REPEAT is disabled on `ReturnStmt` nodes.
 
-The next milestone (M10 — Interpreter: Control Flow) depends on M9 (this milestone). It adds IF/ELSE IF/ELSE, WHILE, BREAK, and CONTINUE to the interpreter.
+The next milestone (M12 — Interpreter: Keyboard Commands) depends on M9. It adds `STRING`, `STRINGLN`, modifier combos (`CTRL SHIFT ESC`), `HOLD`/`RELEASE`, `INJECT_MOD`, `RANDOM_CHAR`, single key press, and error-path key release semantics (spec §5.3).
 
 ---
 
@@ -228,7 +225,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 10 — Interpreter: Control Flow.
+5. Resume from Milestone 12 — Interpreter: Keyboard Commands.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
