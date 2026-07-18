@@ -154,18 +154,18 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.1.0 (alpha)                    |
-| Completed Milestone   | M2 — Token Definitions           |
+| Completed Milestone   | M3 — Lexer                       |
 | Current Branch        | main                             |
-| Last Commit           | f281f9b                          |
+| Last Commit           | 4301e80                          |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M3 — Lexer                       |
+| Next Milestone        | M4 — AST Node Definitions        |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-- `src/ducky/tokens.py` — TokenType enum (176 members), Token dataclass, Operator/ModifierKey/ActionKey enums
-- `tests/test_tokens.py` — 46 tests covering value uniqueness, presence of every spec key, instantiation, immutability, and import hygiene
+- `src/ducky/lexer.py` — `DuckyLexer` class with `tokenize()`, `LexerError` exception, keyword map (all spec keywords), and comment/string/operator/identifier handling
+- `tests/test_lexer.py` — 60 tests covering STRING/STRINGLN body capture, REM/`//`/REM_BLOCK comment stripping, keyword recognition, integer/string literals, operators (multi- and single-char), punctuation, identifiers (`$`, `#`, plain, function-call pattern), ATTACKMODE params, newline/blank-line handling, error conditions (line too long, unterminated string, illegal char, invalid `$`/`#`), and edge cases
 
 ### Files Modified
 
@@ -173,24 +173,27 @@ This section **must** be updated at the completion of every milestone. It descri
 
 ### Tests Executed
 
-- `pip install -e ".[dev]"` — Installed `ducky` package (with new tokens module)
-- `pytest -v` — 46 passed in 0.10s
-- `ruff check src/ducky/tokens.py tests/test_tokens.py` — All checks passed
-- `mypy src/ducky/tokens.py tests/test_tokens.py` — No issues found
+- `pytest tests/` — 106 passed (60 lexer + 46 tokens) in 0.18s
+- `ruff check src/ tests/` — All checks passed
+- `mypy src/ducky/lexer.py tests/test_lexer.py` — Success: no issues found
 
 ### Acceptance Criteria Completed
 
-- [x] Every keyword from spec §1.3 has a TokenType member
-- [x] Every operator from spec §1.8 has an Operator member
-- [x] Every modifier key from spec §1.4 has both TokenType and ModifierKey members
-- [x] Every action key from spec §1.5 has both TokenType and ActionKey members
-- [x] Token data class works with type, value, line, column (frozen dataclass)
-- [x] No imports from outside standard library (only `enum`, `dataclasses`, `__future__`)
-- [x] All 46 tests pass
+- [x] `STRING hello world` → `[STRING, STRING_BODY("hello world"), NEWLINE]` (with column tracking)
+- [x] `CTRL-SHIFT ENTER` → `[CTRL, MINUS, SHIFT, ENTER, NEWLINE]`
+- [x] `REM anything` produces zero tokens (only NEWLINE)
+- [x] `// comment` produces zero tokens
+- [x] `REM_BLOCK ... END_REM` produces zero tokens
+- [x] `DELAY 2000` → `[DELAY, INTEGER("2000"), NEWLINE]`
+- [x] `VAR $x = (5 + 3)` → full expression tokenization (VAR, DOLLAR_IDENTIFIER, ASSIGN, LPAREN, INTEGER, PLUS, INTEGER, RPAREN, NEWLINE)
+- [x] Max line length error emitted at 257th character
+- [x] Unterminated `"` string error emitted with line/col
+- [x] 60 distinct test cases covering all token types, comments, strings, combos, errors, edge cases
+- [x] All 106 tests pass
 
 ### Remaining Milestones
 
-Milestones 3–20 from the implementation roadmap.
+Milestones 4–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -202,11 +205,14 @@ None.
 
 ### Assumptions Made
 
-None.
+- Comment-only lines without trailing newline produce only EOF (no NEWLINE) — consistent with the rule that blank lines only produce NEWLINE when they're not the last line.
+- `RETURN` and `BREAK` each map to a single `TokenType` in the keyword dictionary; the parser will disambiguate by context. Duplicate dict key entries were removed (the function/extension section entry is kept).
+- All leading space (` `) characters after `STRING`/`STRINGLN` keyword are stripped (consistent with spec §1.10 "Leading spaces after the keyword are stripped").
+- Trailing spaces in STRING/STRINGLN body are stripped via `rstrip(" ")` (not `rstrip()` which would strip newlines/tabs).
 
 ### Notes for the Next Session
 
-Milestone 2 is complete. `src/ducky/tokens.py` defines the shared vocabulary for the lexer and parser: `TokenType` (176 auto-valued members covering every keyword, operator token, modifier key, and action key including REM/REM_BLOCK/END_REM), `Token` (frozen dataclass with type/value/line/column), `Operator` (20 operators with string values), `ModifierKey` (8 modifier names), and `ActionKey` (69 action keys). All enums use `auto()` or string values per spec, with naming disambiguations (`RETURN_KEY`, `END_KEY`, `BREAK_KEY`) for spec keywords vs action keys that share names. The next milestone (M3 — Lexer) will consume these token types.
+Milestone 3 is complete. `src/ducky/lexer.py` implements the full DuckyScript 3 lexer: character-level scanner with position tracking, all keyword/operator/identifier/literal recognition, comment stripping (REM, //, REM_BLOCK), STRING/STRINGLN body capture, ATTACKMODE parameter parsing, quoted-string escape-sequence resolution, and error detection (illegal characters, line-too-long, unterminated strings, invalid $/# identifiers, unterminated block comments). The next milestone (M4 — AST Node Definitions) will define AST node classes consumed by the parser.
 
 ---
 
@@ -220,7 +226,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 3 — Lexer.
+5. Resume from Milestone 4 — AST Node Definitions.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
