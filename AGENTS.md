@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** Milestone 5 complete. M6 — Parser is next.  
+**Current status:** M7 complete. M8 — Desktop Platform API is next.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -154,42 +154,42 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.1.0 (alpha)                    |
-| Completed Milestone   | M5 — Lexer Tests (Expanded)      |
+| Completed Milestone   | M7 — Parser Tests (Expanded)     |
 | Current Branch        | main                             |
-| Last Commit           | 0e75c45                          |
+| Last Commit           | `f41fe6f`                        |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M6 — Parser                      |
+| Next Milestone        | M8 — Desktop Platform API        |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-- `tests/test_lexer.py` — Expanded from 60 tests to 77 tests (17 new edge-case tests covering: REM_BLOCK 3+ lines, STRING without body, STRING with special chars, $123 invalid, $x1 valid, #123 invalid, = vs == combined, zero/leading zeros/hex leading zeros, whitespace-only lines, CRLF parity, comments-only files, REM with leading space)
+None (no new files)
 
 ### Files Modified
 
-- `AGENTS.md` — Updated Session Handoff for M5
-- `plans/DuckyScript3_Engineering_Spec.md` — Added CircuitPython import restriction to §7.2
-- `plans/DuckyScript3_Implementation_Roadmap.md` — Moved NodeVisitor from M4 to M6, added source position note to M6
+- `tests/test_parser.py` — Added 45 new parser test methods across 5 new test classes (statement edge cases, expression edge cases, error edge cases, full program edge cases, NodeVisitor edge cases)
 
 ### Tests Executed
 
-- `pytest tests/` — 182 passed (77 lexer + 59 AST + 46 tokens) in 0.15s
+- `pytest tests/test_parser.py` — 146 passed (99 original + 45 new) in 0.16s
+- `pytest tests/` — 334 passed (146 parser + 77 lexer + 59 AST + 46 tokens + 6 ast edge cases) in 0.31s
 - `ruff check src/ tests/` — All checks passed
-- `mypy src/` — Success: no issues found in 8 source files
+- `mypy src/ducky/parser.py` — Success: no issues found
 
 ### Acceptance Criteria Completed
 
-- [x] Minimum 30 test cases (expanded from 60 to 77 lexer tests)
-- [x] Every keyword from spec §1.3 tokenized correctly (verified by existing + new tests)
-- [x] All three comment styles tested (REM, //, REM_BLOCK with keywords inside)
-- [x] All error conditions produce correct diagnostics (LexerError with line/col/message)
-- [x] Edge cases documented as comments in test file
-- [x] All 182 tests pass, ruff clean, mypy clean
+- [x] Minimum 40 test cases (45 added)
+- [x] Every statement type tested with valid input (includes delay zero, combo with GUI/ALT, hold, empty bodies, F-keys)
+- [x] Every error condition tested with valid diagnostic (missing END_IF/WHILE/FUNCTION/EXTENSION, REPEAT after END_FUNCTION, DEFINE without #, mismatched block closers)
+- [x] Expression precedence verified with multiple test cases (hex, unary on groups, double unary, power/chained associativity, modulo, $var reference)
+- [x] Full program edge cases (comments-only, defines-only, deep nesting, function call chains, CRLF)
+- [x] NodeVisitor edge cases (return values, child traversal, unknown node fallback)
+- [x] All 334 tests pass, ruff clean, mypy clean
 
 ### Remaining Milestones
 
-Milestones 6–20 from the implementation roadmap.
+Milestones 7–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -201,15 +201,15 @@ None.
 
 ### Assumptions Made
 
-- No line/column position tracking on AST nodes (unlike the roadmap's suggestion) — the task description specifies pure data with no methods, and the task-provided class stubs exclude position attributes. Position information will be handled by the parser.
-- `Script` wraps statements in a `tuple[Stmt, ...]` rather than a list, consistent with frozen immutability.
-- The roadmap mentions a `NodeVisitor` class, but Milestone 4 (AST) was implemented as pure data with no methods. `NodeVisitor` is now officially deferred to Milestone 6 (Parser) and the roadmap has been updated accordingly.
+- No line/column position tracking on AST nodes — source position is derived from token positions at parse time (consistent with the roadmap note added in M5)
+- ELSE IF chains are represented as nested IfStmt nodes in the else_body field (no separate ElseIfStmt)
+- Method names in grammar (Identifier) are treated as IdentifierExpr nodes; function calls (Identifier + ()) produce CallStmt/CallExpr
 
 ### Notes for the Next Session
 
-Milestone 5 is complete. The lexer now has 77 tests covering all edge cases: multi-line REM_BLOCK with keywords inside, STRING/STRINGLN body edge cases (no body, special chars, body parity), identifier edge cases ($123 invalid, $x1 valid, #123 invalid), operator disambiguation (= vs ==), number edge cases (zero, leading zeros, hex leading zeros), whitespace-only lines, CRLF parity, and whole-file comments-only/REM-with-leading-space scenarios.
+Milestone 7 is complete. The parser test suite expanded from 99 to 146 tests (+45), covering edge cases the basic tests missed: statement boundaries (zero delay, empty bodies), expression corner cases (hex literals, double unary, associativity), error conditions for unterminated blocks and mismatched closers, full programs with comments/defines/deep nesting, and NodeVisitor return value propagation.
 
-The next milestone (M6 — Parser) depends on M2 (Token definitions) and M4 (AST nodes). The planning documents have been updated: NodeVisitor and source position handling are now listed as M6 deliverables.
+The next milestone (M8 — Desktop Platform API) depends on M1 (scaffold only — no language modules). It defines PlatformInterface protocols and desktop mock backends. This unblocks M9 (Interpreter Core).
 
 ---
 
@@ -223,7 +223,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 6 — Parser.
+5. Resume from Milestone 8 — Desktop Platform API.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.

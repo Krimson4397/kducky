@@ -762,3 +762,388 @@ class TestNodeVisitor:
         visitor = NodeVisitor()
         with pytest.raises(NotImplementedError, match="No visit method"):
             visitor.visit(IntegerExpr(42))
+
+
+# ── Statement edge cases ──────────────────────────────────────────────────
+
+
+class TestStatementEdgeCases:
+    """Edge cases for statement parsing beyond basic happy paths."""
+
+    def test_delay_zero(self) -> None:
+        """DELAY 0 is valid and parses correctly."""
+        stmt = assert_single_stmt("DELAY 0\n", DelayStmt)
+        assert stmt.milliseconds.value == 0
+
+    def test_delay_expr_with_parens(self) -> None:
+        """DELAY with parenthesized expression."""
+        stmt = assert_single_stmt("DELAY (100 + 50)\n", DelayStmt)
+        assert isinstance(stmt.milliseconds, GroupExpr)
+
+    def test_key_stmt_many(self) -> None:
+        """Many action keys parse correctly."""
+        for key_name in [
+            "ENTER", "SPACE", "TAB", "BACKSPACE", "DELETE",
+            "HOME", "END", "ESCAPE", "MENU", "CAPSLOCK",
+        ]:
+            stmt = assert_single_stmt(f"{key_name}\n", KeyStmt)
+            assert stmt.key.name == key_name
+
+    def test_key_stmt_f_keys(self) -> None:
+        """All F1-F12 action keys parse correctly."""
+        for i in range(1, 13):
+            stmt = assert_single_stmt(f"F{i}\n", KeyStmt)
+            assert stmt.key.name == f"F{i}"
+
+    def test_combo_with_gui(self) -> None:
+        """GUI modifier key works in combo."""
+        stmt = assert_single_stmt("GUI ENTER\n", ComboStmt)
+        assert ModifierKey.GUI in stmt.modifiers
+
+    def test_combo_with_alt(self) -> None:
+        """ALT modifier key works in combo."""
+        stmt = assert_single_stmt("ALT TAB\n", ComboStmt)
+        assert stmt.key == ActionKey.TAB
+
+    def test_combo_mixed_separators(self) -> None:
+        """Mixed space and hyphen separators in combo."""
+        stmt = assert_single_stmt("CTRL-SHIFT ENTER\n", ComboStmt)
+        assert stmt.modifiers == (ModifierKey.CTRL, ModifierKey.SHIFT)
+        assert stmt.key == ActionKey.ENTER
+
+    def test_default_delay_expr(self) -> None:
+        """DEFAULTDELAY accepts expression value."""
+        stmt = assert_single_stmt("DEFAULTDELAY 500 + 100\n", DefaultDelayStmt)
+        assert isinstance(stmt.delay, BinaryOp)
+
+    def test_hold_key_many(self) -> None:
+        """HOLD with different action keys."""
+        stmt = assert_single_stmt("HOLD SPACE\n", HoldStmt)
+        assert stmt.key == ActionKey.SPACE
+        stmt2 = assert_single_stmt("HOLD TAB\n", HoldStmt)
+        assert stmt2.key == ActionKey.TAB
+
+    def test_var_decl_underscore_name(self) -> None:
+        """VAR $my_var parses with underscore in name."""
+        stmt = assert_single_stmt("VAR $my_var\n", VarDef)
+        assert stmt.name == "my_var"
+
+    def test_assign_with_expr(self) -> None:
+        """$x = (1 + 2) * 3 parses as assignment of complex expression."""
+        stmt = assert_single_stmt("$x = (1 + 2) * 3\n", AssignStmt)
+        assert isinstance(stmt.value, BinaryOp)
+        assert stmt.value.operator == Operator.MULTIPLY
+
+    def test_if_empty_body(self) -> None:
+        """IF with no statements in body."""
+        script = parse("IF 1 THEN\nEND_IF\n")
+        stmt = script.statements[0]
+        assert isinstance(stmt, IfStmt)
+        assert len(stmt.body) == 0
+
+    def test_while_empty_body(self) -> None:
+        """WHILE with no statements in body."""
+        script = parse("WHILE 1\nEND_WHILE\n")
+        stmt = script.statements[0]
+        assert isinstance(stmt, WhileStmt)
+        assert len(stmt.body) == 0
+
+    def test_function_empty_body(self) -> None:
+        """Function with no statements in body."""
+        source = "FUNCTION foo()\nEND_FUNCTION\n"
+        script = parse(source)
+        stmt = script.statements[0]
+        assert isinstance(stmt, FunctionDef)
+        assert stmt.name == "foo"
+        assert len(stmt.body) == 0
+
+    def test_multiple_else_if(self) -> None:
+        """IF with multiple ELSE IF branches."""
+        source = (
+            "IF 1 THEN\nDELAY 10\n"
+            "ELSE IF 2 THEN\nDELAY 20\n"
+            "ELSE IF 3 THEN\nDELAY 30\n"
+            "END_IF\n"
+        )
+        script = parse(source)
+        stmt = script.statements[0]
+        assert isinstance(stmt, IfStmt)
+        # First ELSE IF
+        elif1 = stmt.else_body[0]
+        assert isinstance(elif1, IfStmt)
+        # Second ELSE IF nested in first's else_body
+        elif2 = elif1.else_body[0]
+        assert isinstance(elif2, IfStmt)
+        assert elif2.condition.value == 3
+
+    def test_attack_mode_off(self) -> None:
+        """ATTACKMODE OFF parses correctly."""
+        stmt = assert_single_stmt("ATTACKMODE OFF\n", AttackModeStmt)
+        assert stmt.params == ("OFF",)
+
+    def test_wait_for_scroll_change(self) -> None:
+        """WAIT_FOR_SCROLL_CHANGE parses correctly."""
+        stmt = assert_single_stmt("WAIT_FOR_SCROLL_CHANGE\n", WaitForKeyStmt)
+        assert stmt.lock_key.name == "SCROLL"
+        assert stmt.state.name == "CHANGE"
+
+    def test_extension_empty_body(self) -> None:
+        """EXTENSION with empty body."""
+        source = "EXTENSION myext\nEND_EXTENSION\n"
+        script = parse(source)
+        stmt = script.statements[0]
+        assert isinstance(stmt, ExtensionStmt)
+        assert len(stmt.body) == 0
+
+    def test_define_multi_word(self) -> None:
+        """DEFINE with multi-word value."""
+        stmt = assert_single_stmt("DEFINE #MSG Hello World\n", DefineStmt)
+        assert stmt.name == "MSG"
+        assert stmt.value == "Hello World"
+
+
+# ── Expression edge cases ────────────────────────────────────────────────
+
+
+class TestExpressionEdgeCases:
+    """Expression edge cases beyond basic precedence."""
+
+    def test_hex_integer_expr(self) -> None:
+        """Hex integer literal in expression."""
+        stmt = assert_single_stmt("DELAY 0xFF\n", DelayStmt)
+        assert stmt.milliseconds.value == 255
+
+    def test_unary_not_on_complex(self) -> None:
+        """! on parenthesized expression."""
+        script = parse("VAR $x = !(1 + 2)\n")
+        expr = script.statements[0].initializer
+        assert isinstance(expr, UnaryOp)
+        assert expr.operator == Operator.NOT
+        assert isinstance(expr.operand, GroupExpr)
+
+    def test_unary_minus_on_complex(self) -> None:
+        """- on parenthesized expression."""
+        script = parse("VAR $x = -(5 * 2)\n")
+        expr = script.statements[0].initializer
+        assert isinstance(expr, UnaryOp)
+        assert expr.operator == Operator.SUBTRACT
+        assert isinstance(expr.operand, GroupExpr)
+
+    def test_double_unary(self) -> None:
+        """!!0 should parse as unary NOT applied twice."""
+        script = parse("VAR $x = !!0\n")
+        expr = script.statements[0].initializer
+        assert isinstance(expr, UnaryOp)
+        assert expr.operator == Operator.NOT
+        assert isinstance(expr.operand, UnaryOp)
+        assert expr.operand.operator == Operator.NOT
+
+    def test_power_associativity(self) -> None:
+        """2 ^ 3 ^ 4 should parse as (2 ^ 3) ^ 4 (left associativity)."""
+        script = parse("VAR $x = 2 ^ 3 ^ 4\n")
+        expr = script.statements[0].initializer
+        assert isinstance(expr, BinaryOp)
+        assert expr.operator == Operator.POWER
+        assert expr.right.value == 4
+        assert isinstance(expr.left, BinaryOp)
+        assert expr.left.operator == Operator.POWER
+        assert expr.left.left.value == 2
+        assert expr.left.right.value == 3
+
+    def test_chained_comparison(self) -> None:
+        """1 < 2 < 3 should parse as (1 < 2) < 3."""
+        script = parse("VAR $x = 1 < 2 < 3\n")
+        expr = script.statements[0].initializer
+        assert isinstance(expr, BinaryOp)
+        assert expr.operator == Operator.LESS
+        assert expr.right.value == 3
+        assert isinstance(expr.left, BinaryOp)
+        assert expr.left.operator == Operator.LESS
+        assert expr.left.left.value == 1
+        assert expr.left.right.value == 2
+
+    def test_modulo_operator(self) -> None:
+        """10 % 3 parses correctly."""
+        script = parse("VAR $x = 10 % 3\n")
+        expr = script.statements[0].initializer
+        assert isinstance(expr, BinaryOp)
+        assert expr.operator == Operator.MODULO
+        assert expr.left.value == 10
+        assert expr.right.value == 3
+
+    def test_dollar_identifier_expr(self) -> None:
+        """$name in expression context."""
+        script = parse("DELAY $timeout\n")
+        stmt = script.statements[0]
+        assert isinstance(stmt.milliseconds, DollarIdentifierExpr)
+        assert stmt.milliseconds.name == "timeout"
+
+
+# ── Additional error tests ────────────────────────────────────────────────
+
+
+class TestErrorEdgeCases:
+    """Additional error conditions with diagnostic validation."""
+
+    def test_missing_end_if(self) -> None:
+        """Unterminated IF block."""
+        with pytest.raises(ParseError, match="Expected END_IF"):
+            parse("IF 1 THEN\nDELAY 100\n")
+
+    def test_missing_end_while(self) -> None:
+        """Unterminated WHILE block."""
+        with pytest.raises(ParseError, match="Expected END_WHILE"):
+            parse("WHILE $x\nDELAY 100\n")
+
+    def test_missing_end_function(self) -> None:
+        """Unterminated FUNCTION block."""
+        with pytest.raises(ParseError, match="Expected END_FUNCTION"):
+            parse("FUNCTION foo()\nDELAY 100\n")
+
+    def test_missing_end_extension(self) -> None:
+        """Unterminated EXTENSION block."""
+        with pytest.raises(ParseError, match="Expected END_EXTENSION"):
+            parse("EXTENSION myext\nDELAY 100\n")
+
+    def test_repeat_after_end_function(self) -> None:
+        """REPEAT after END_FUNCTION should be invalid."""
+        with pytest.raises(ParseError, match="REPEAT must follow"):
+            parse("FUNCTION foo()\nRESET\nEND_FUNCTION\nREPEAT 3\n")
+
+    def test_define_without_hash(self) -> None:
+        """DEFINE without # should fail."""
+        with pytest.raises(ParseError, match="Expected #NAME"):
+            parse("DEFINE NAME value\n")
+
+    def test_if_without_condition(self) -> None:
+        """IF THEN without condition should fail."""
+        with pytest.raises(ParseError):
+            parse("IF THEN\nRESET\nEND_IF\n")
+
+    def test_var_without_name(self) -> None:
+        """VAR without $identifier should fail."""
+        with pytest.raises(ParseError, match="Expected \\$identifier"):
+            parse("VAR\n")
+
+    def test_nested_block_mismatch(self) -> None:
+        """END_WHILE inside IF block (mismatched closer) should fail."""
+        with pytest.raises(ParseError, match="Unexpected END_WHILE"):
+            parse("IF 1 THEN\nEND_WHILE\nEND_IF\n")
+
+    def test_statement_after_repeat(self) -> None:
+        """Statement after REPEAT should be valid (REPEAT applies to preceding)."""
+        script = parse("DELAY 100\nREPEAT 3\nRESET\n")
+        assert len(script.statements) == 3
+
+
+# ── Additional full-program tests ─────────────────────────────────────────
+
+
+class TestFullProgramEdgeCases:
+    """Additional multi-statement program edge cases."""
+
+    def test_comments_only_program(self) -> None:
+        """Program with only REM lines and blank lines."""
+        script = parse("REM this is a comment\n\n// another comment\n\n")
+        assert len(script.statements) == 0
+
+    def test_defines_only(self) -> None:
+        """Program with only DEFINE statements."""
+        source = (
+            "DEFINE #DELAY 1000\n"
+            "DEFINE #TEXT Hello\n"
+        )
+        script = parse(source)
+        assert len(script.statements) == 2
+        assert isinstance(script.statements[0], DefineStmt)
+        assert isinstance(script.statements[1], DefineStmt)
+
+    def test_nested_if_while_compound(self) -> None:
+        """Deeply nested IF inside WHILE inside IF."""
+        source = (
+            "IF 1 THEN\n"
+            "  WHILE $x\n"
+            "    IF 2 THEN\n"
+            "      BREAK\n"
+            "    END_IF\n"
+            "    CONTINUE\n"
+            "  END_WHILE\n"
+            "ELSE\n"
+            "  RESET\n"
+            "END_IF\n"
+        )
+        script = parse(source)
+        assert len(script.statements) == 1
+        outer_if = script.statements[0]
+        assert isinstance(outer_if, IfStmt)
+        # WHILE is in the IF body
+        wh = outer_if.body[0]
+        assert isinstance(wh, WhileStmt)
+        # Inner IF is in the WHILE body
+        inner_if = wh.body[0]
+        assert isinstance(inner_if, IfStmt)
+        assert isinstance(inner_if.body[0], BreakStmt)
+
+    def test_function_with_return_call_chain(self) -> None:
+        """Function that calls another function."""
+        source = (
+            "FUNCTION inner()\n"
+            "RETURN 42\n"
+            "END_FUNCTION\n"
+            "FUNCTION outer()\n"
+            "VAR $x\n"
+            "$x = inner()\n"
+            "RETURN $x\n"
+            "END_FUNCTION\n"
+            "outer()\n"
+        )
+        script = parse(source)
+        assert len(script.statements) == 3
+        assert isinstance(script.statements[0], FunctionDef)
+        assert script.statements[0].name == "inner"
+        assert isinstance(script.statements[1], FunctionDef)
+        assert script.statements[1].name == "outer"
+        assert isinstance(script.statements[2], CallStmt)
+        assert script.statements[2].name == "outer"
+
+    def test_crlf_line_endings(self) -> None:
+        """Program with CRLF line endings parses the same as LF."""
+        script = parse("DELAY 1000\r\nENTER\r\nSTRING hello\r\n")
+        assert len(script.statements) == 3
+        assert isinstance(script.statements[0], DelayStmt)
+        assert isinstance(script.statements[1], KeyStmt)
+        assert isinstance(script.statements[2], StringStmt)
+
+
+# ── NodeVisitor edge cases ───────────────────────────────────────────────
+
+
+class TestNodeVisitorEdgeCases:
+    """Additional NodeVisitor functionality."""
+
+    def test_visitor_returns_values(self) -> None:
+        """Visitor methods can return values that propagate."""
+        class ReturnVisitor(NodeVisitor):
+            def visit_IntegerExpr(self, node):  # noqa: N802
+                return node.value
+        visitor = ReturnVisitor()
+        result = visitor.visit(IntegerExpr(42))
+        assert result == 42
+
+    def test_visitor_child_traversal(self) -> None:
+        """Subclass visits children manually via visit()."""
+        class TraversalVisitor(NodeVisitor):
+            def __init__(self):
+                self.seen = []
+            def visit_IntegerExpr(self, node):  # noqa: N802
+                self.seen.append(node.value)
+        visitor = TraversalVisitor()
+        visitor.visit(IntegerExpr(1))
+        visitor.visit(IntegerExpr(2))
+        assert visitor.seen == [1, 2]
+
+    def test_visitor_unknown_node(self) -> None:
+        """Visit method for unknown node type raises NotImplementedError."""
+        visitor = NodeVisitor()
+        with pytest.raises(NotImplementedError):
+            visitor.visit(42)  # not an AST node
