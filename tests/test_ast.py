@@ -15,14 +15,19 @@ from ducky.ast import (
     AssignStmt,
     AttackModeStmt,
     BinaryOp,
+    BreakStmt,
     ButtonDefStmt,
+    CallExpr,
+    CallStmt,
     ComboStmt,
+    ContinueStmt,
     DefaultCharDelayStmt,
     DefaultDelayStmt,
     DefineStmt,
     DelayStmt,
     DisableButtonStmt,
     DollarIdentifierExpr,
+    DuckyLangStmt,
     EnableButtonStmt,
     ExtensionStmt,
     FunctionDef,
@@ -52,6 +57,7 @@ from ducky.ast import (
     SaveAttackModeStmt,
     SaveHostLockStateStmt,
     Script,
+    Stmt,
     StopPayloadStmt,
     StringExpr,
     StringLnStmt,
@@ -102,6 +108,14 @@ class TestStmtNodes:
         assert isinstance(node.count, IntegerExpr)
         assert node.count.value == 5
 
+    def test_break_stmt(self) -> None:
+        node = BreakStmt()
+        assert isinstance(node, Stmt)
+
+    def test_continue_stmt(self) -> None:
+        node = ContinueStmt()
+        assert isinstance(node, Stmt)
+
     def test_var_def(self) -> None:
         node = VarDef(name="x", initializer=IntegerExpr(1))
         assert node.name == "x"
@@ -137,8 +151,9 @@ class TestStmtNodes:
         assert node.key == ActionKey.TAB
 
     def test_delay_stmt(self) -> None:
-        node = DelayStmt(milliseconds=1000)
-        assert node.milliseconds == 1000
+        node = DelayStmt(milliseconds=IntegerExpr(1000))
+        assert isinstance(node.milliseconds, IntegerExpr)
+        assert node.milliseconds.value == 1000
 
     def test_default_delay_stmt(self) -> None:
         node = DefaultDelayStmt(delay=IntegerExpr(200))
@@ -238,6 +253,11 @@ class TestStmtNodes:
         assert node.modifiers == ()
         assert node.key == ActionKey.ENTER
 
+    def test_combo_stmt_default_key(self) -> None:
+        node = ComboStmt(modifiers=())
+        assert node.modifiers == ()
+        assert node.key is None
+
     def test_function_def(self) -> None:
         node = FunctionDef(name="test", params=("x",), body=(ResetStmt(),))
         assert node.name == "test"
@@ -253,6 +273,14 @@ class TestStmtNodes:
         node = DefineStmt(name="NAME", value="value")
         assert node.name == "NAME"
         assert node.value == "value"
+
+    def test_call_stmt_node(self) -> None:
+        node = CallStmt(name="foo")
+        assert node.name == "foo"
+
+    def test_ducky_lang_stmt(self) -> None:
+        node = DuckyLangStmt(language="DE")
+        assert node.language == "DE"
 
 
 # ── Expression nodes ────────────────────────────────────────────────
@@ -295,6 +323,10 @@ class TestExprNodes:
     def test_group_expr(self) -> None:
         node = GroupExpr(IntegerExpr(1))
         assert node.expression.value == 1
+
+    def test_call_expr(self) -> None:
+        node = CallExpr(name="bar")
+        assert node.name == "bar"
 
 
 # ── AST enums ───────────────────────────────────────────────────────

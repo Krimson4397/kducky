@@ -62,6 +62,23 @@ class RepeatStmt(Stmt):
     count: Expr
 
 
+@dataclass(frozen=True)
+class BreakStmt(Stmt):
+    """Exit the innermost WHILE loop."""
+
+
+@dataclass(frozen=True)
+class ContinueStmt(Stmt):
+    """Skip to the next iteration of the innermost WHILE loop."""
+
+
+@dataclass(frozen=True)
+class CallStmt(Stmt):
+    """Function call as a standalone statement (return value discarded)."""
+
+    name: str
+
+
 # ── Variables ───────────────────────────────────────────────────────
 
 
@@ -131,7 +148,7 @@ class ReleaseStmt(Stmt):
 class DelayStmt(Stmt):
     """Blocking pause for a fixed number of milliseconds."""
 
-    milliseconds: int
+    milliseconds: Expr
 
 
 @dataclass(frozen=True)
@@ -313,6 +330,13 @@ class RestorePayloadStmt(Stmt):
     """Restore a previously hidden payload file to visibility."""
 
 
+@dataclass(frozen=True)
+class DuckyLangStmt(Stmt):
+    """Set the keyboard layout language."""
+
+    language: str
+
+
 # ── Combo ───────────────────────────────────────────────────────────
 
 
@@ -321,7 +345,7 @@ class ComboStmt(Stmt):
     """Modifier + action key combo: press modifiers then key then release all."""
 
     modifiers: tuple[ModifierKey, ...]
-    key: ActionKey
+    key: ActionKey | None = None
 
 
 # ── Function & Extension ────────────────────────────────────────────
@@ -372,6 +396,13 @@ class StringExpr(Expr):
 @dataclass(frozen=True)
 class IdentifierExpr(Expr):
     """Plain identifier reference (function name, not variable)."""
+
+    name: str
+
+
+@dataclass(frozen=True)
+class CallExpr(Expr):
+    """Function call expression (returns a value)."""
 
     name: str
 
