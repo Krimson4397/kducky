@@ -156,7 +156,7 @@ This section **must** be updated at the completion of every milestone. It descri
 | Project Version       | 0.1.0 (alpha)                    |
 | Completed Milestone   | M5 — Lexer Tests (Expanded)      |
 | Current Branch        | main                             |
-| Last Commit           | 643ee59                          |
+| Last Commit           | d0aa0cc                          |
 | Repository Status     | Clean working tree               |
 | Next Milestone        | M6 — Parser                      |
 | Blocking Issues       | None                             |
