@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** Planning phase complete. Awaiting Milestone 1 (Repository Scaffold).  
+**Current status:** Milestone 2 complete. M3 — Lexer is next.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -153,34 +153,44 @@ This section **must** be updated at the completion of every milestone. It descri
 
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
-| Project Version       | 0.0.0 (pre-release)              |
-| Completed Milestone   | None — planning phase complete   |
-| Current Branch        | Not yet initialized              |
-| Last Commit           | None                             |
-| Repository Status     | Empty (no code yet)              |
-| Next Milestone        | M1 — Repository Scaffold         |
+| Project Version       | 0.1.0 (alpha)                    |
+| Completed Milestone   | M2 — Token Definitions           |
+| Current Branch        | main                             |
+| Last Commit           | f281f9b                          |
+| Repository Status     | Clean working tree               |
+| Next Milestone        | M3 — Lexer                       |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-None yet.
+- `src/ducky/tokens.py` — TokenType enum (176 members), Token dataclass, Operator/ModifierKey/ActionKey enums
+- `tests/test_tokens.py` — 46 tests covering value uniqueness, presence of every spec key, instantiation, immutability, and import hygiene
 
 ### Files Modified
 
-None yet.
+- `AGENTS.md` — Updated Session Handoff
 
 ### Tests Executed
 
-None yet.
+- `pip install -e ".[dev]"` — Installed `ducky` package (with new tokens module)
+- `pytest -v` — 46 passed in 0.10s
+- `ruff check src/ducky/tokens.py tests/test_tokens.py` — All checks passed
+- `mypy src/ducky/tokens.py tests/test_tokens.py` — No issues found
 
 ### Acceptance Criteria Completed
 
-None yet.
+- [x] Every keyword from spec §1.3 has a TokenType member
+- [x] Every operator from spec §1.8 has an Operator member
+- [x] Every modifier key from spec §1.4 has both TokenType and ModifierKey members
+- [x] Every action key from spec §1.5 has both TokenType and ActionKey members
+- [x] Token data class works with type, value, line, column (frozen dataclass)
+- [x] No imports from outside standard library (only `enum`, `dataclasses`, `__future__`)
+- [x] All 46 tests pass
 
 ### Remaining Milestones
 
-All 20 milestones from the implementation roadmap.
+Milestones 3–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -188,21 +198,19 @@ None.
 
 ### Technical Debt
 
-None (no code written yet).
+None.
 
 ### Assumptions Made
 
-None yet.
+None.
 
 ### Notes for the Next Session
 
-The project is at the starting line. All three planning documents are in `plans/`. The engineering spec is frozen. The development workflow is documented. The next step is to obtain user approval for Milestone 1 — Repository Scaffold, which will create the package structure, toolchain configuration, and test infrastructure. No code changes have been made yet.
+Milestone 2 is complete. `src/ducky/tokens.py` defines the shared vocabulary for the lexer and parser: `TokenType` (176 auto-valued members covering every keyword, operator token, modifier key, and action key including REM/REM_BLOCK/END_REM), `Token` (frozen dataclass with type/value/line/column), `Operator` (20 operators with string values), `ModifierKey` (8 modifier names), and `ActionKey` (69 action keys). All enums use `auto()` or string values per spec, with naming disambiguations (`RETURN_KEY`, `END_KEY`, `BREAK_KEY`) for spec keywords vs action keys that share names. The next milestone (M3 — Lexer) will consume these token types.
 
 ---
 
 ## 9. Continuation Prompt
-
-At the end of every milestone, generate a ready-to-copy continuation prompt and place it here. It should look like:
 
 ```
 Continue development of the kducky project.
@@ -212,7 +220,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone X.
+5. Resume from Milestone 3 — Lexer.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
