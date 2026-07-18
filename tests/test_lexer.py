@@ -535,3 +535,152 @@ class TestEdgeCases:
         # wait: STRING=6 chars, col becomes 7. Strip 3 spaces: col becomes 10.
         result = tokenize("STRING   abc")
         assert result[1] == tok(TokenType.STRING_BODY, "abc", col=10)
+
+
+class TestStringBodyEdgeCases:
+    """Edge cases for STRING / STRINGLN body capture."""
+
+    def test_string_without_body(self) -> None:
+        """STRING with no body (newline immediately after keyword) -> no STRING_BODY."""
+        result = tokenize("STRING\n")
+        assert types(result) == [TokenType.STRING, TokenType.NEWLINE, TokenType.EOF]
+
+    def test_stringln_without_body(self) -> None:
+        """STRINGLN with no body (newline immediately after keyword) -> no STRING_BODY."""
+        result = tokenize("STRINGLN\n")
+        assert types(result) == [TokenType.STRINGLN, TokenType.NEWLINE, TokenType.EOF]
+
+    def test_string_body_special_chars(self) -> None:
+        """STRING body can contain $, (, # and other special characters."""
+        result = tokenize("STRING $hello (#test)")
+        assert result[0] == tok(TokenType.STRING, "STRING")
+        assert result[1] == tok(TokenType.STRING_BODY, "$hello (#test)", col=8)
+        assert result[2].type is TokenType.NEWLINE
+        assert result[3].type is TokenType.EOF
+
+    def test_string_ln_body_special_chars(self) -> None:
+        """STRINGLN body can contain $, (, # and other special characters."""
+        result = tokenize("STRINGLN $hello (#test)")
+        assert result[0] == tok(TokenType.STRINGLN, "STRINGLN")
+        assert result[1] == tok(TokenType.STRING_BODY, "$hello (#test)", col=10)
+        assert result[2].type is TokenType.NEWLINE
+        assert result[3].type is TokenType.EOF
+
+
+class TestIdentifiersEdgeCases:
+    """Edge cases for $ and # identifiers."""
+
+    def test_dollar_x1_valid(self) -> None:
+        """$x1 is a valid dollar identifier with alphanumeric chars."""
+        result = tokenize("$x1")
+        assert types(result) == [TokenType.DOLLAR_IDENTIFIER, TokenType.NEWLINE, TokenType.EOF]
+        assert result[0].value == "x1"
+
+    def test_dollar_digit_only_invalid(self) -> None:
+        """$123 raises LexerError — digits alone after $ are not an identifier."""
+        with pytest.raises(LexerError) as exc:
+            tokenize("$123")
+        assert "Invalid $" in str(exc.value)
+
+    def test_hash_digit_only_invalid(self) -> None:
+        """#123 raises LexerError — digits alone after # are not an identifier."""
+        with pytest.raises(LexerError) as exc:
+            tokenize("#123")
+        assert "Invalid #" in str(exc.value)
+
+
+class TestOperatorsEdgeCases:
+    """Operator disambiguation edge cases."""
+
+    def test_equals_vs_assign(self) -> None:
+        """== is EQ (comparison) vs = is ASSIGN (assignment)."""
+        result = tokenize("$x == 5\n$y = 10")
+        assert result[0] == tok(TokenType.DOLLAR_IDENTIFIER, "x", line=1, col=1)
+        assert result[1] == tok(TokenType.EQ, "==", line=1, col=4)
+        assert result[2] == tok(TokenType.INTEGER, "5", line=1, col=7)
+        assert result[3] == tok(TokenType.NEWLINE, "\n", line=1, col=8)
+        assert result[4] == tok(TokenType.DOLLAR_IDENTIFIER, "y", line=2, col=1)
+        assert result[5] == tok(TokenType.ASSIGN, "=", line=2, col=4)
+        assert result[6] == tok(TokenType.INTEGER, "10", line=2, col=6)
+        assert result[7].type is TokenType.NEWLINE
+        assert result[8].type is TokenType.EOF
+
+
+class TestNumberEdgeCases:
+    """Numeric literal edge cases."""
+
+    def test_zero_integer(self) -> None:
+        """Single zero is a valid integer."""
+        result = tokenize("0")
+        assert result[0] == tok(TokenType.INTEGER, "0")
+
+    def test_leading_zeros_decimal(self) -> None:
+        """Leading zeros are valid per spec §3.1 IntegerLiteral = [0-9]+."""
+        result = tokenize("007")
+        assert result[0] == tok(TokenType.INTEGER, "007")
+
+    def test_hex_leading_zeros(self) -> None:
+        """Hex literals can have leading zeros within the hex part."""
+        result = tokenize("0x00FF")
+        assert result[0] == tok(TokenType.INTEGER, "0x00FF")
+        result = tokenize("0x0000")
+        assert result[0] == tok(TokenType.INTEGER, "0x0000")
+
+
+class TestWhitespaceLineEdgeCases:
+    """Whitespace-only lines and line-ending styles."""
+
+    def test_spaces_only_then_content(self) -> None:
+        """A line with only spaces produces a NEWLINE delimiter, then content follows."""
+        result = tokenize("  \nDELAY 100\n")
+        assert types(result) == [
+            TokenType.NEWLINE,
+            TokenType.DELAY,
+            TokenType.INTEGER,
+            TokenType.NEWLINE,
+            TokenType.EOF,
+        ]
+
+    def test_tabs_only_then_content(self) -> None:
+        """A line with only tabs produces a NEWLINE delimiter, then content follows."""
+        result = tokenize("\t\nDELAY 100\n")
+        assert types(result) == [
+            TokenType.NEWLINE,
+            TokenType.DELAY,
+            TokenType.INTEGER,
+            TokenType.NEWLINE,
+            TokenType.EOF,
+        ]
+
+    def test_crlf_handling(self) -> None:
+        """CRLF line endings produce the same token types and values as LF-only."""
+        result_crlf = tokenize("DELAY 100\r\n")
+        result_lf = tokenize("DELAY 100\n")
+        pairs_crlf = [(t.type, t.value) for t in result_crlf]
+        pairs_lf = [(t.type, t.value) for t in result_lf]
+        assert pairs_crlf == pairs_lf
+
+
+class TestWholeFileEdgeCases:
+    """Comment and REM behaviour as whole-file inputs."""
+
+    def test_comment_only_no_trailing_newline(self) -> None:
+        """REM with text but no trailing newline produces only EOF."""
+        result = tokenize("REM comment")
+        assert types(result) == [TokenType.EOF]
+
+    def test_comment_only_with_trailing_newline(self) -> None:
+        """REM with text and trailing newline produces NEWLINE + EOF."""
+        result = tokenize("REM comment\n")
+        assert types(result) == [TokenType.NEWLINE, TokenType.EOF]
+
+    def test_rem_with_leading_space(self) -> None:
+        """REM preceded by whitespace still consumes the rest of the line."""
+        result = tokenize(" REM\nDELAY 100\n")
+        assert types(result) == [
+            TokenType.NEWLINE,
+            TokenType.DELAY,
+            TokenType.INTEGER,
+            TokenType.NEWLINE,
+            TokenType.EOF,
+        ]

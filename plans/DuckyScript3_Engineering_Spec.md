@@ -572,6 +572,7 @@ Forbidden:
 - No code above the Platform layer may import CircuitPython (`circuitpython`, `adafruit_hid`, `usb_hid`, `storage`, `microcontroller`, `board`, etc.).
 - The Platform layer must not import any language module.
 - Desktop testing uses a mock PlatformInterface that logs events.
+- The `src/ducky/` directory must never import CircuitPython modules. Only the platform layer (`src/platform/`) may depend on CircuitPython or hardware libraries.
 
 ### 7.3 Separation of Concerns
 

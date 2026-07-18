@@ -128,8 +128,6 @@
 - Node classes for: `Program`, `VarDecl`, `Assign`, `If`, `While`, `Break`, `Continue`, `FunctionDef`, `Call`, `Return`, `Block`
 - Expression node classes for every expression level: `Literal`, `Variable`, `UnaryOp`, `BinaryOp`, `Grouping`, `FuncCall`
 - Statement nodes for: `Delay`, `DefaultDelay`, `DefaultCharDelay`, `String`, `StringLn`, `KeyPress`, `ModifierCombo`, `InjectMod`, `Hold`, `Release`, `Repeat`, `Reset`, `RestartPayload`, `StopPayload`, `RandomChar`, `Led`, `ButtonDef`, `WaitForButtonPress`, `EnableButton`, `DisableButton`, `AttackMode`, `SaveAttackMode`, `RestoreAttackMode`, `WaitForLockKey`, `SaveRestoreLockState`, `HidePayload`, `RestorePayload`, `DuckyLang`, `ExtensionDef`
-- `NodeVisitor` base class with visitor methods for every node type
-
 **Files to create:**
 - `src/ducky/ast.py`
 - `tests/test_ast.py`
@@ -140,7 +138,6 @@
 - Every statement type from the grammar (§2) has a corresponding AST node
 - Expression hierarchy matches the precedence table (§4.1)
 - Nodes store start line/column from the source token
-- `NodeVisitor` provides default traversal (bottom-up walk)
 - Test: instantiate each node type with valid data
 - All tests pass
 
@@ -190,7 +187,9 @@
 - `DuckyParser` class with `parse(tokens: list[Token]) -> Program` method
 - Parsing for all statement types using the grammar (§2)
 - Expression parsing matching the precedence table (§4.1)
+- `NodeVisitor` base class with default traversal methods for every AST node type
 - Error recovery: report first syntax error with diagnostic (line, column, expected vs found)
+- AST node source positions are derived from token line/column, not stored directly on nodes
 - `parse` returns a `Program` node containing the full AST
 - Parser rejects: `RETURN` outside function, `BREAK`/`CONTINUE` outside loop, `REPEAT` after block-end keyword, `ELSE IF` without preceding `IF`
 

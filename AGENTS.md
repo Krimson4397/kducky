@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** Milestone 2 complete. M3 — Lexer is next.  
+**Current status:** Milestone 5 complete. M6 — Parser is next.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -154,43 +154,42 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.1.0 (alpha)                    |
-| Completed Milestone   | M4 — AST Node Definitions        |
+| Completed Milestone   | M5 — Lexer Tests (Expanded)      |
 | Current Branch        | main                             |
-| Last Commit           | 4301e80                          |
+| Last Commit           | 9ea741c                          |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M5 — Lexer Tests (Expanded)      |
+| Next Milestone        | M6 — Parser                      |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-- `src/ducky/ast/__init__.py` — Re-exports all 38 public names from nodes.py
-- `src/ducky/ast/nodes.py` — 41 frozen dataclass AST nodes (`Stmt`/`Expr` base classes, `Script`, all statement and expression nodes), 4 AST-specific enums (`RandomType`, `LedState`, `LockKeyType`, `LockKeyState`), imports only from standard library + `ducky.tokens`
-- `tests/test_ast.py` — 59 tests covering instantiation of every node type (39 statement tests, 8 expression tests, 8 enum tests), immutability (2 tests), and import hygiene (1 test)
+- `tests/test_lexer.py` — Expanded from 60 tests to 77 tests (17 new edge-case tests covering: REM_BLOCK 3+ lines, STRING without body, STRING with special chars, $123 invalid, $x1 valid, #123 invalid, = vs == combined, zero/leading zeros/hex leading zeros, whitespace-only lines, CRLF parity, comments-only files, REM with leading space)
 
 ### Files Modified
 
-- `AGENTS.md` — Updated Session Handoff
+- `AGENTS.md` — Updated Session Handoff for M5
+- `plans/DuckyScript3_Engineering_Spec.md` — Added CircuitPython import restriction to §7.2
+- `plans/DuckyScript3_Implementation_Roadmap.md` — Moved NodeVisitor from M4 to M6, added source position note to M6
 
 ### Tests Executed
 
-- `pytest tests/` — 165 passed (59 AST + 60 lexer + 46 tokens) in 0.16s
+- `pytest tests/` — 182 passed (77 lexer + 59 AST + 46 tokens) in 0.15s
 - `ruff check src/ tests/` — All checks passed
 - `mypy src/` — Success: no issues found in 8 source files
 
 ### Acceptance Criteria Completed
 
-- [x] All grammar productions from spec §2 have a corresponding AST node class
-- [x] Node classes are frozen dataclasses (pure data, no methods)
-- [x] Base classes `Stmt` and `Expr` for type hierarchy
-- [x] AST-specific enums for `RandomType`, `LedState`, `LockKeyType`, `LockKeyState`
-- [x] Tests verify instantiation of every node type (40 statement + 8 expression + 4 enum = 52 unique nodes)
-- [x] No imports from outside standard library + `ducky.tokens`
-- [x] All 165 tests pass, ruff clean, mypy clean
+- [x] Minimum 30 test cases (expanded from 60 to 77 lexer tests)
+- [x] Every keyword from spec §1.3 tokenized correctly (verified by existing + new tests)
+- [x] All three comment styles tested (REM, //, REM_BLOCK with keywords inside)
+- [x] All error conditions produce correct diagnostics (LexerError with line/col/message)
+- [x] Edge cases documented as comments in test file
+- [x] All 182 tests pass, ruff clean, mypy clean
 
 ### Remaining Milestones
 
-Milestones 5–20 from the implementation roadmap.
+Milestones 6–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -204,11 +203,13 @@ None.
 
 - No line/column position tracking on AST nodes (unlike the roadmap's suggestion) — the task description specifies pure data with no methods, and the task-provided class stubs exclude position attributes. Position information will be handled by the parser.
 - `Script` wraps statements in a `tuple[Stmt, ...]` rather than a list, consistent with frozen immutability.
-- The roadmap mentions a `NodeVisitor` class, but the task description does not include it and instructs "pure data — frozen dataclasses, no methods". Visitor will be implemented in a later milestone if needed.
+- The roadmap mentions a `NodeVisitor` class, but Milestone 4 (AST) was implemented as pure data with no methods. `NodeVisitor` is now officially deferred to Milestone 6 (Parser) and the roadmap has been updated accordingly.
 
 ### Notes for the Next Session
 
-Milestone 4 is complete. `src/ducky/ast/nodes.py` defines every AST node as a frozen dataclass with `Stmt`/`Expr` base classes. All 41 node classes (Script, 33 statement types, 8 expression types) plus 4 AST-specific enums are implemented and tested. The `__init__.py` re-exports all public names. The next milestone (M5 — Lexer Tests Expanded) will add comprehensive lexer test coverage. Milestone 6 (Parser) depends on both M2 tokens and M4 AST nodes and can follow after M5.
+Milestone 5 is complete. The lexer now has 77 tests covering all edge cases: multi-line REM_BLOCK with keywords inside, STRING/STRINGLN body edge cases (no body, special chars, body parity), identifier edge cases ($123 invalid, $x1 valid, #123 invalid), operator disambiguation (= vs ==), number edge cases (zero, leading zeros, hex leading zeros), whitespace-only lines, CRLF parity, and whole-file comments-only/REM-with-leading-space scenarios.
+
+The next milestone (M6 — Parser) depends on M2 (Token definitions) and M4 (AST nodes). The planning documents have been updated: NodeVisitor and source position handling are now listed as M6 deliverables.
 
 ---
 
@@ -222,7 +223,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 5 — Lexer Tests (Expanded).
+5. Resume from Milestone 6 — Parser.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
