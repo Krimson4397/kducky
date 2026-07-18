@@ -154,18 +154,19 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.1.0 (alpha)                    |
-| Completed Milestone   | M3 — Lexer                       |
+| Completed Milestone   | M4 — AST Node Definitions        |
 | Current Branch        | main                             |
 | Last Commit           | 4301e80                          |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M4 — AST Node Definitions        |
+| Next Milestone        | M5 — Lexer Tests (Expanded)      |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-- `src/ducky/lexer.py` — `DuckyLexer` class with `tokenize()`, `LexerError` exception, keyword map (all spec keywords), and comment/string/operator/identifier handling
-- `tests/test_lexer.py` — 60 tests covering STRING/STRINGLN body capture, REM/`//`/REM_BLOCK comment stripping, keyword recognition, integer/string literals, operators (multi- and single-char), punctuation, identifiers (`$`, `#`, plain, function-call pattern), ATTACKMODE params, newline/blank-line handling, error conditions (line too long, unterminated string, illegal char, invalid `$`/`#`), and edge cases
+- `src/ducky/ast/__init__.py` — Re-exports all 38 public names from nodes.py
+- `src/ducky/ast/nodes.py` — 41 frozen dataclass AST nodes (`Stmt`/`Expr` base classes, `Script`, all statement and expression nodes), 4 AST-specific enums (`RandomType`, `LedState`, `LockKeyType`, `LockKeyState`), imports only from standard library + `ducky.tokens`
+- `tests/test_ast.py` — 59 tests covering instantiation of every node type (39 statement tests, 8 expression tests, 8 enum tests), immutability (2 tests), and import hygiene (1 test)
 
 ### Files Modified
 
@@ -173,27 +174,23 @@ This section **must** be updated at the completion of every milestone. It descri
 
 ### Tests Executed
 
-- `pytest tests/` — 106 passed (60 lexer + 46 tokens) in 0.18s
+- `pytest tests/` — 165 passed (59 AST + 60 lexer + 46 tokens) in 0.16s
 - `ruff check src/ tests/` — All checks passed
-- `mypy src/ducky/lexer.py tests/test_lexer.py` — Success: no issues found
+- `mypy src/` — Success: no issues found in 8 source files
 
 ### Acceptance Criteria Completed
 
-- [x] `STRING hello world` → `[STRING, STRING_BODY("hello world"), NEWLINE]` (with column tracking)
-- [x] `CTRL-SHIFT ENTER` → `[CTRL, MINUS, SHIFT, ENTER, NEWLINE]`
-- [x] `REM anything` produces zero tokens (only NEWLINE)
-- [x] `// comment` produces zero tokens
-- [x] `REM_BLOCK ... END_REM` produces zero tokens
-- [x] `DELAY 2000` → `[DELAY, INTEGER("2000"), NEWLINE]`
-- [x] `VAR $x = (5 + 3)` → full expression tokenization (VAR, DOLLAR_IDENTIFIER, ASSIGN, LPAREN, INTEGER, PLUS, INTEGER, RPAREN, NEWLINE)
-- [x] Max line length error emitted at 257th character
-- [x] Unterminated `"` string error emitted with line/col
-- [x] 60 distinct test cases covering all token types, comments, strings, combos, errors, edge cases
-- [x] All 106 tests pass
+- [x] All grammar productions from spec §2 have a corresponding AST node class
+- [x] Node classes are frozen dataclasses (pure data, no methods)
+- [x] Base classes `Stmt` and `Expr` for type hierarchy
+- [x] AST-specific enums for `RandomType`, `LedState`, `LockKeyType`, `LockKeyState`
+- [x] Tests verify instantiation of every node type (40 statement + 8 expression + 4 enum = 52 unique nodes)
+- [x] No imports from outside standard library + `ducky.tokens`
+- [x] All 165 tests pass, ruff clean, mypy clean
 
 ### Remaining Milestones
 
-Milestones 4–20 from the implementation roadmap.
+Milestones 5–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -205,14 +202,13 @@ None.
 
 ### Assumptions Made
 
-- Comment-only lines without trailing newline produce only EOF (no NEWLINE) — consistent with the rule that blank lines only produce NEWLINE when they're not the last line.
-- `RETURN` and `BREAK` each map to a single `TokenType` in the keyword dictionary; the parser will disambiguate by context. Duplicate dict key entries were removed (the function/extension section entry is kept).
-- All leading space (` `) characters after `STRING`/`STRINGLN` keyword are stripped (consistent with spec §1.10 "Leading spaces after the keyword are stripped").
-- Trailing spaces in STRING/STRINGLN body are stripped via `rstrip(" ")` (not `rstrip()` which would strip newlines/tabs).
+- No line/column position tracking on AST nodes (unlike the roadmap's suggestion) — the task description specifies pure data with no methods, and the task-provided class stubs exclude position attributes. Position information will be handled by the parser.
+- `Script` wraps statements in a `tuple[Stmt, ...]` rather than a list, consistent with frozen immutability.
+- The roadmap mentions a `NodeVisitor` class, but the task description does not include it and instructs "pure data — frozen dataclasses, no methods". Visitor will be implemented in a later milestone if needed.
 
 ### Notes for the Next Session
 
-Milestone 3 is complete. `src/ducky/lexer.py` implements the full DuckyScript 3 lexer: character-level scanner with position tracking, all keyword/operator/identifier/literal recognition, comment stripping (REM, //, REM_BLOCK), STRING/STRINGLN body capture, ATTACKMODE parameter parsing, quoted-string escape-sequence resolution, and error detection (illegal characters, line-too-long, unterminated strings, invalid $/# identifiers, unterminated block comments). The next milestone (M4 — AST Node Definitions) will define AST node classes consumed by the parser.
+Milestone 4 is complete. `src/ducky/ast/nodes.py` defines every AST node as a frozen dataclass with `Stmt`/`Expr` base classes. All 41 node classes (Script, 33 statement types, 8 expression types) plus 4 AST-specific enums are implemented and tested. The `__init__.py` re-exports all public names. The next milestone (M5 — Lexer Tests Expanded) will add comprehensive lexer test coverage. Milestone 6 (Parser) depends on both M2 tokens and M4 AST nodes and can follow after M5.
 
 ---
 
@@ -226,7 +222,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 4 — AST Node Definitions.
+5. Resume from Milestone 5 — Lexer Tests (Expanded).
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
