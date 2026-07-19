@@ -4,16 +4,14 @@ This module defines the shared vocabulary between the lexer and parser:
 token types, the Token data class, and semantic enums for operators,
 modifier keys, and action keys.
 
-Pure data — no logic. Imports only from the standard library.
+Pure data — no logic. Uses compat shim for CircuitPython portability.
 """
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-from enum import Enum, auto, unique
+from ducky.utils.compat import auto, enum, unique
 
 
-class TokenType(Enum):
+@enum
+class TokenType:
     """Every token category the lexer can produce.
 
     Values are auto-generated unique integers.  The enum member names
@@ -244,7 +242,6 @@ class TokenType(Enum):
     PASTE = auto()
 
 
-@dataclass(frozen=True)
 class Token:
     """A single token produced by the lexer and consumed by the parser.
 
@@ -256,14 +253,34 @@ class Token:
         column: 1-based source column number (start of the lexeme).
     """
 
-    type: TokenType
-    value: str
-    line: int
-    column: int
+    __slots__ = ("type", "value", "line", "column")
+
+    def __init__(self, type, value, line, column):
+        self.type = type
+        self.value = value
+        self.line = line
+        self.column = column
+
+    def __repr__(self):
+        return (
+            f"Token(type={self.type!r}, value={self.value!r},"
+            f" line={self.line}, column={self.column})"
+        )
+
+    def __eq__(self, other):
+        if type(self) is not type(other):
+            return NotImplemented
+        return (self.type, self.value, self.line, self.column) == (
+            other.type, other.value, other.line, other.column,
+        )
+
+    def __hash__(self):
+        return hash((self.type, self.value, self.line, self.column))
 
 
 @unique
-class Operator(Enum):
+@enum
+class Operator:
     """DuckyScript 3 operators mapped to their source lexemes."""
 
     ADD = "+"
@@ -289,7 +306,8 @@ class Operator(Enum):
 
 
 @unique
-class ModifierKey(Enum):
+@enum
+class ModifierKey:
     """Modifier key names usable in combo statements."""
 
     CONTROL = "CONTROL"
@@ -303,7 +321,8 @@ class ModifierKey(Enum):
 
 
 @unique
-class ActionKey(Enum):
+@enum
+class ActionKey:
     """Every action key the interpreter can press or release."""
 
     # ── Navigation ────────────────────────────────────────────────

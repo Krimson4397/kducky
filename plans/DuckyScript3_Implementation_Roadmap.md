@@ -452,16 +452,13 @@
 **Goal:** Implement the hardware-specific platform backends for the Raspberry Pi Pico 2 W running CircuitPython.
 
 **Deliverables:**
-- `PicoKeyboardBackend` — uses `adafruit_hid.keyboard.Keyboard` and `adafruit_hid.keyboard_layout_us.KeyboardLayoutUS` (plus other layouts)
-- `PicoFilesystemBackend` — uses `storage` module for hide/restore, `os.listdir`, etc.
-- `PicoTimingBackend` — uses `time.monotonic` and `time.sleep`
-- `PicoRandomBackend` — uses `os.urandom` or RP2350 TRNG
-- `PicoGPIOBackend` — uses `board` and `digitalio`
-- `PicoLEDBackend` — uses `board.LED` or GPIO pin for RGB
-- `PicoHIDBackend` — configures USB descriptors for ATTACKMODE
-- `PicoRecoveryBackend` — checks boot button state
-- `main.py` entrypoint: detects recovery mode, reads `payload.dd`, runs interpreter with Pico platform
-- `boot.py` configuration for USB mode
+- Single `PicoPlatform` class implementing all 26 `PlatformInterface` methods from spec §6 directly (flat protocol, not hierarchical sub-backends)
+- Guarded CircuitPython imports (`try/except ImportError`) so the module imports safely on desktop
+- `_ACTION_KEY_MAP`: exhaustive mapping of all 69 `ActionKey` members to `adafruit_hid` keycodes
+- `_MODIFIER_KEY_MAP`: exhaustive mapping of all 8 `ModifierKey` members to `adafruit_hid` keycodes
+- Seeded pseudo-random number generator using `os.urandom` (RP2350 TRNG) with `random.Random`
+- `main.py` entrypoint: reads `/payload.dd`, runs lexer → parser → interpreter pipeline, signals status via onboard LED
+- `boot.py` USB configuration: enables HID keyboard + optional storage disable via `/STORAGE_DISABLE` marker
 
 **Files to create:**
 - `src/platform/pico/backends.py`
@@ -469,15 +466,20 @@
 - `src/platform/pico/boot.py`
 - `tests/test_pico_platform.py` (desktop tests that validate mock matches Pico interface contract — not runnable on Pico itself)
 
-**Dependencies:** Milestone 8 (PlatformInterface protocols)
+**Dependencies:** Milestone 8 (PlatformInterface protocol)
 
 **Acceptance Criteria:**
-- All backends implement their respective protocols
-- `main.py` reads `payload.dd` from CIRCUITPY and executes it
-- Boot button detection works (holds to skip payload)
-- Keyboard layout JSON files load and map characters correctly
+- Single `PicoPlatform` class satisfies `PlatformInterface` protocol (all 26 methods present with matching signatures)
+- Module imports safely on desktop (`_HAS_HW` is `False`, no CircuitPython imports leak)
+- `_ACTION_KEY_MAP` covers all 69 `ActionKey` members
+- `_MODIFIER_KEY_MAP` covers all 8 `ModifierKey` members
+- `boot.py` enables USB HID + optional storage disable
+- `main.py` executes payload through full lexer → parser → interpreter pipeline
+- Signal methods (`restart_payload`, `stop_payload`) raise correct payload control exceptions
+- Contract tests verify interface compliance structurally without hardware
+- All existing 538 desktop tests still pass
 - All protocol interfaces satisfied (checked via mypy)
-- Tests verify interface contract compliance
+- Tests verify interface contract compliance (17 contract tests)
 
 **Complexity:** High
 

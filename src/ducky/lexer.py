@@ -4,9 +4,9 @@ Converts source text into a stream of tokens (Token data class).
 Tokenization rules per the Engineering Spec, §3.2.
 """
 
-from __future__ import annotations
+print("[ducky.lexer] loading module...")  # noqa: E402
 
-from ducky.tokens import Token, TokenType
+from ducky.tokens import Token, TokenType  # noqa: E402
 
 
 class LexerError(Exception):
@@ -373,7 +373,7 @@ class DuckyLexer:
         if pos >= len(source):
             return True
         ch = source[pos]
-        return not (ch.isalnum() or ch == "_")
+        return not ((ch.isalpha() or ch.isdigit()) or ch == "_")
 
     @staticmethod
     def _check_line_length(line: int, col: int) -> None:
@@ -443,7 +443,7 @@ class DuckyLexer:
             return self._scan_hash(source, i, line, col)
 
         # Word (keyword, identifier, integer)
-        if ch.isalnum() or ch == "_":
+        if (ch.isalpha() or ch.isdigit()) or ch == "_":
             return self._scan_word(source, i, line, col)
 
         # Nothing matched — illegal character
@@ -507,7 +507,9 @@ class DuckyLexer:
         if i >= len(source) or not (source[i].isalpha() or source[i] == "_"):
             raise LexerError("Invalid $ identifier", line, col)
         start = i
-        while i < len(source) and (source[i].isalnum() or source[i] == "_"):
+        while i < len(source) and (
+            source[i].isalpha() or source[i].isdigit() or source[i] == "_"
+        ):
             i += 1
         name = source[start:i]
         return ([Token(TokenType.DOLLAR_IDENTIFIER, name, line, col)], i)
@@ -520,7 +522,9 @@ class DuckyLexer:
         if i >= len(source) or not (source[i].isalpha() or source[i] == "_"):
             raise LexerError("Invalid # identifier", line, col)
         start = i
-        while i < len(source) and (source[i].isalnum() or source[i] == "_"):
+        while i < len(source) and (
+            source[i].isalpha() or source[i].isdigit() or source[i] == "_"
+        ):
             i += 1
         name = source[start:i]
         return ([Token(TokenType.HASH_IDENTIFIER, name, line, col)], i)
@@ -530,7 +534,9 @@ class DuckyLexer:
     ) -> tuple[list[Token], int]:
         """Scan a word: keyword, identifier, integer, or ``name()`` call."""
         start = i
-        while i < len(source) and (source[i].isalnum() or source[i] == "_"):
+        while i < len(source) and (
+            source[i].isalpha() or source[i].isdigit() or source[i] == "_"
+        ):
             i += 1
         word = source[start:i]
         word_upper = word.upper()

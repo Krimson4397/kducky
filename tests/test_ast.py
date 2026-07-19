@@ -336,7 +336,7 @@ class TestAstEnums:
     """Verify enum uniqueness and member presence."""
 
     def test_random_type_values_unique(self) -> None:
-        values = [m.value for m in RandomType]
+        values = [m.value for m in RandomType.members()]
         assert len(values) == len(set(values))
 
     def test_random_type_members(self) -> None:
@@ -348,31 +348,31 @@ class TestAstEnums:
             "NUMBER",
             "SPECIAL",
         }
-        assert {m.name for m in RandomType} == expected
+        assert {m.name for m in RandomType.members()} == expected
 
     def test_led_state_values_unique(self) -> None:
-        values = [m.value for m in LedState]
+        values = [m.value for m in LedState.members()]
         assert len(values) == len(set(values))
 
     def test_led_state_members(self) -> None:
         expected = {"OFF", "R", "G", "B"}
-        assert {m.name for m in LedState} == expected
+        assert {m.name for m in LedState.members()} == expected
 
     def test_lock_key_type_values_unique(self) -> None:
-        values = [m.value for m in LockKeyType]
+        values = [m.value for m in LockKeyType.members()]
         assert len(values) == len(set(values))
 
     def test_lock_key_type_members(self) -> None:
         expected = {"CAPS", "NUM", "SCROLL"}
-        assert {m.name for m in LockKeyType} == expected
+        assert {m.name for m in LockKeyType.members()} == expected
 
     def test_lock_key_state_values_unique(self) -> None:
-        values = [m.value for m in LockKeyState]
+        values = [m.value for m in LockKeyState.members()]
         assert len(values) == len(set(values))
 
     def test_lock_key_state_members(self) -> None:
         expected = {"ON", "OFF", "CHANGE"}
-        assert {m.name for m in LockKeyState} == expected
+        assert {m.name for m in LockKeyState.members()} == expected
 
 
 # ── Immutability ────────────────────────────────────────────────────
@@ -429,6 +429,7 @@ class TestImportHygiene:
                     # Only allow ducky.tokens
                     assert sub in (
                         ".tokens",
+                        ".utils.compat",
                         "",
                     ), f"Disallowed import from ducky submodule: {node.module}"
                 else:

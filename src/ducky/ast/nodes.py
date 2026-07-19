@@ -3,16 +3,12 @@
 Every grammar production from the specification (§2) has a corresponding
 frozen dataclass.  These are pure data containers — no methods, no logic.
 
-Imports are limited to the standard library (``enum``, ``dataclasses``,
-``__future__``) and ``ducky.tokens``.
+Imports use the compat shim (``ducky.utils.compat``) for CircuitPython
+portability, plus ``ducky.tokens`` for shared types.
 """
 
-from __future__ import annotations
-
-from dataclasses import dataclass
-from enum import Enum, auto, unique
-
 from ducky.tokens import ActionKey, ModifierKey, Operator
+from ducky.utils.compat import auto, dataclass, enum, unique
 
 # ── Base classes ────────────────────────────────────────────────────
 
@@ -32,6 +28,8 @@ class Expr:
 class Script:
     """Top-level program: an ordered sequence of statements."""
 
+    __slots__ = ("statements",)
+
     statements: tuple[Stmt, ...]
 
 
@@ -42,6 +40,9 @@ class Script:
 class IfStmt(Stmt):
     """Conditional branch with optional else/else-if chain."""
 
+    __slots__ = ("condition", "body")
+    __defaults__ = {"else_body": None}
+
     condition: Expr
     body: tuple[Stmt, ...]
     else_body: tuple[Stmt, ...] | None = None
@@ -51,6 +52,8 @@ class IfStmt(Stmt):
 class WhileStmt(Stmt):
     """Pre-check loop: repeat body while condition is truthy."""
 
+    __slots__ = ("condition", "body")
+
     condition: Expr
     body: tuple[Stmt, ...]
 
@@ -58,6 +61,8 @@ class WhileStmt(Stmt):
 @dataclass(frozen=True)
 class RepeatStmt(Stmt):
     """Repeat the immediately preceding statement *count* additional times."""
+
+    __slots__ = ("count",)
 
     count: Expr
 
@@ -76,6 +81,17 @@ class ContinueStmt(Stmt):
 class CallStmt(Stmt):
     """Function call as a standalone statement (return value discarded)."""
 
+    __slots__ = ("name",)
+
+    name: str
+
+
+@dataclass(frozen=True)
+class IdentifierStmt(Stmt):
+    """Statement consisting of a bare identifier (extension call or error)."""
+
+    __slots__ = ("name",)
+
     name: str
 
 
@@ -86,6 +102,8 @@ class CallStmt(Stmt):
 class VarDef(Stmt):
     """Variable declaration with optional initializer."""
 
+    __slots__ = ("name", "initializer")
+
     name: str
     initializer: Expr
 
@@ -93,6 +111,8 @@ class VarDef(Stmt):
 @dataclass(frozen=True)
 class AssignStmt(Stmt):
     """Assignment to an existing variable."""
+
+    __slots__ = ("name", "value")
 
     name: str
     value: Expr
@@ -105,6 +125,8 @@ class AssignStmt(Stmt):
 class KeyStmt(Stmt):
     """Press a single action key (no modifiers)."""
 
+    __slots__ = ("key",)
+
     key: ActionKey
 
 
@@ -112,12 +134,16 @@ class KeyStmt(Stmt):
 class StringStmt(Stmt):
     """Type a literal string character by character."""
 
+    __slots__ = ("text",)
+
     text: str
 
 
 @dataclass(frozen=True)
 class StringLnStmt(Stmt):
     """Type a literal string followed by ENTER."""
+
+    __slots__ = ("text",)
 
     text: str
 
@@ -131,12 +157,16 @@ class InjectModStmt(Stmt):
 class HoldStmt(Stmt):
     """Press and hold a key until released."""
 
+    __slots__ = ("key",)
+
     key: ActionKey
 
 
 @dataclass(frozen=True)
 class ReleaseStmt(Stmt):
     """Release a previously held key."""
+
+    __slots__ = ("key",)
 
     key: ActionKey
 
@@ -148,6 +178,8 @@ class ReleaseStmt(Stmt):
 class DelayStmt(Stmt):
     """Blocking pause for a fixed number of milliseconds."""
 
+    __slots__ = ("milliseconds",)
+
     milliseconds: Expr
 
 
@@ -155,12 +187,16 @@ class DelayStmt(Stmt):
 class DefaultDelayStmt(Stmt):
     """Set the inter-statement delay (applied after every subsequent statement)."""
 
+    __slots__ = ("delay",)
+
     delay: Expr
 
 
 @dataclass(frozen=True)
 class DefaultCharDelayStmt(Stmt):
     """Set the delay between individual characters in STRING/STRINGLN."""
+
+    __slots__ = ("delay",)
 
     delay: Expr
 
@@ -171,6 +207,8 @@ class DefaultCharDelayStmt(Stmt):
 @dataclass(frozen=True)
 class AttackModeStmt(Stmt):
     """Configure USB device mode and identifiers."""
+
+    __slots__ = ("params",)
 
     params: tuple[str, ...]
 
@@ -191,6 +229,8 @@ class RestoreAttackModeStmt(Stmt):
 @dataclass(frozen=True)
 class ReturnStmt(Stmt):
     """Exit a function, optionally returning a value."""
+
+    __defaults__ = {"value": None}
 
     value: Expr | None = None
 
@@ -214,7 +254,8 @@ class StopPayloadStmt(Stmt):
 
 
 @unique
-class RandomType(Enum):
+@enum
+class RandomType:
     """Categories of random character generation."""
 
     CHAR = auto()
@@ -229,6 +270,8 @@ class RandomType(Enum):
 class RandomStmt(Stmt):
     """Generate and type a random character from the given category."""
 
+    __slots__ = ("random_type",)
+
     random_type: RandomType
 
 
@@ -236,7 +279,8 @@ class RandomStmt(Stmt):
 
 
 @unique
-class LedState(Enum):
+@enum
+class LedState:
     """Available LED states."""
 
     OFF = auto()
@@ -249,6 +293,8 @@ class LedState(Enum):
 class LedStmt(Stmt):
     """Set the device LED to a specific state."""
 
+    __slots__ = ("state",)
+
     state: LedState
 
 
@@ -258,6 +304,8 @@ class LedStmt(Stmt):
 @dataclass(frozen=True)
 class ButtonDefStmt(Stmt):
     """Define a button handler with a name and body statements."""
+
+    __slots__ = ("name", "body")
 
     name: str
     body: tuple[Stmt, ...]
@@ -282,7 +330,8 @@ class EnableButtonStmt(Stmt):
 
 
 @unique
-class LockKeyType(Enum):
+@enum
+class LockKeyType:
     """Host lock key types that can be waited on."""
 
     CAPS = auto()
@@ -291,7 +340,8 @@ class LockKeyType(Enum):
 
 
 @unique
-class LockKeyState(Enum):
+@enum
+class LockKeyState:
     """Expected state transitions for lock key wait commands."""
 
     ON = auto()
@@ -302,6 +352,8 @@ class LockKeyState(Enum):
 @dataclass(frozen=True)
 class WaitForKeyStmt(Stmt):
     """Block until a host lock key reaches a target state."""
+
+    __slots__ = ("lock_key", "state")
 
     lock_key: LockKeyType
     state: LockKeyState
@@ -334,6 +386,8 @@ class RestorePayloadStmt(Stmt):
 class DuckyLangStmt(Stmt):
     """Set the keyboard layout language."""
 
+    __slots__ = ("language",)
+
     language: str
 
 
@@ -344,8 +398,11 @@ class DuckyLangStmt(Stmt):
 class ComboStmt(Stmt):
     """Modifier + action key combo: press modifiers then key then release all."""
 
+    __slots__ = ("modifiers",)
+    __defaults__ = {"key": None}
+
     modifiers: tuple[ModifierKey, ...]
-    key: ActionKey | None = None
+    key: str | ActionKey | None = None
 
 
 # ── Function & Extension ────────────────────────────────────────────
@@ -354,6 +411,8 @@ class ComboStmt(Stmt):
 @dataclass(frozen=True)
 class FunctionDef(Stmt):
     """Function definition with zero parameters."""
+
+    __slots__ = ("name", "params", "body")
 
     name: str
     params: tuple[str, ...]
@@ -364,6 +423,8 @@ class FunctionDef(Stmt):
 class ExtensionStmt(Stmt):
     """Extension block (parsed but semantics are extension-specific)."""
 
+    __slots__ = ("name", "body")
+
     name: str
     body: tuple[Stmt, ...]
 
@@ -371,6 +432,8 @@ class ExtensionStmt(Stmt):
 @dataclass(frozen=True)
 class DefineStmt(Stmt):
     """Preprocessor constant definition (``DEFINE #NAME value``)."""
+
+    __slots__ = ("name", "value")
 
     name: str
     value: str
@@ -383,12 +446,16 @@ class DefineStmt(Stmt):
 class IntegerExpr(Expr):
     """Integer literal expression."""
 
+    __slots__ = ("value",)
+
     value: int
 
 
 @dataclass(frozen=True)
 class StringExpr(Expr):
     """String literal expression (quoted string in expression context)."""
+
+    __slots__ = ("value",)
 
     value: str
 
@@ -397,12 +464,16 @@ class StringExpr(Expr):
 class IdentifierExpr(Expr):
     """Plain identifier reference (function name, not variable)."""
 
+    __slots__ = ("name",)
+
     name: str
 
 
 @dataclass(frozen=True)
 class CallExpr(Expr):
     """Function call expression (returns a value)."""
+
+    __slots__ = ("name",)
 
     name: str
 
@@ -411,6 +482,8 @@ class CallExpr(Expr):
 class DollarIdentifierExpr(Expr):
     """``$name`` variable reference."""
 
+    __slots__ = ("name",)
+
     name: str
 
 
@@ -418,12 +491,16 @@ class DollarIdentifierExpr(Expr):
 class HashIdentifierExpr(Expr):
     """``#NAME`` constant reference."""
 
+    __slots__ = ("name",)
+
     name: str
 
 
 @dataclass(frozen=True)
 class BinaryOp(Expr):
     """Binary operation: left *operator* right."""
+
+    __slots__ = ("left", "operator", "right")
 
     left: Expr
     operator: Operator
@@ -434,6 +511,8 @@ class BinaryOp(Expr):
 class UnaryOp(Expr):
     """Unary operation: *operator* operand."""
 
+    __slots__ = ("operator", "operand")
+
     operator: Operator
     operand: Expr
 
@@ -441,5 +520,7 @@ class UnaryOp(Expr):
 @dataclass(frozen=True)
 class GroupExpr(Expr):
     """Parenthesized expression for explicit precedence."""
+
+    __slots__ = ("expression",)
 
     expression: Expr

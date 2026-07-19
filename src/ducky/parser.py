@@ -5,9 +5,9 @@ Reports the first syntax error with a diagnostic — no error recovery
 beyond that point.
 """
 
-from __future__ import annotations
+print("[ducky.parser] loading module...")  # noqa: E402
 
-from ducky.ast import (
+from ducky.ast import (  # noqa: E402
     AssignStmt,
     AttackModeStmt,
     BinaryOp,
@@ -33,6 +33,7 @@ from ducky.ast import (
     HidePayloadStmt,
     HoldStmt,
     IdentifierExpr,
+    IdentifierStmt,
     IfStmt,
     InjectModStmt,
     IntegerExpr,
@@ -65,8 +66,8 @@ from ducky.ast import (
     WaitForKeyStmt,
     WhileStmt,
 )
-from ducky.tokens import ActionKey, ModifierKey, Operator, Token, TokenType
-from ducky.utils.visitor import NodeVisitor
+from ducky.tokens import ActionKey, ModifierKey, Operator, Token, TokenType  # noqa: E402
+from ducky.utils.visitor import NodeVisitor  # noqa: E402
 
 __all__ = [
     "DuckyParser",
@@ -479,7 +480,7 @@ class DuckyParser:
         if token.type in _ACTION_KEY_TOKEN_TYPES:
             return self._parse_key_stmt()
 
-        # ── Identifier → function call or error ──
+        # ── Identifier → function call or statement ──
         if token.type == TokenType.IDENTIFIER:
             # Check if followed by LPAREN → call statement
             if (
@@ -487,11 +488,8 @@ class DuckyParser:
                 and self._tokens[self._pos + 1].type == TokenType.LPAREN
             ):
                 return self._parse_call_stmt()
-            raise ParseError(
-                f"Unexpected identifier '{token.value}'",
-                token.line,
-                token.column,
-            )
+            self._advance()
+            return IdentifierStmt(name=token.value)
 
         # ── Nothing matched ──
         raise ParseError(
@@ -581,6 +579,18 @@ class DuckyParser:
             elif self._peek().type in _ACTION_KEY_TOKEN_TYPES:
                 key = _TOKEN_TO_ACTION_KEY[self._advance().type]
                 break
+            elif self._peek().type in (TokenType.IDENTIFIER, TokenType.INTEGER):
+                word_val = self._peek().value.upper()
+                if len(word_val) == 1 and (word_val.isalpha() or word_val.isdigit()):
+                    key = self._advance().value.upper()
+                    break
+                else:
+                    token = self._advance()
+                    raise ParseError(
+                        f"Invalid key in modifier combo: {token.value!r}",
+                        token.line,
+                        token.column,
+                    )
             else:
                 break
 

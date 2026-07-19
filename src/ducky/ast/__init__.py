@@ -1,5 +1,6 @@
 """Abstract syntax tree node definitions."""
-from ducky.ast.nodes import (
+print("[ducky.ast] loading module...")
+from ducky.ast.nodes import (  # noqa: E402
     AssignStmt,
     AttackModeStmt,
     BinaryOp,
@@ -25,6 +26,7 @@ from ducky.ast.nodes import (
     HidePayloadStmt,
     HoldStmt,
     IdentifierExpr,
+    IdentifierStmt,
     IfStmt,
     InjectModStmt,
     IntegerExpr,
@@ -106,6 +108,7 @@ __all__ = [
     "IntegerExpr",
     "StringExpr",
     "IdentifierExpr",
+    "IdentifierStmt",
     "DollarIdentifierExpr",
     "HashIdentifierExpr",
     "BinaryOp",

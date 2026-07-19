@@ -6,8 +6,6 @@ Every enum member created in tokens.py should be documented and unique.
 import ast
 import inspect
 
-import pytest
-
 from ducky.tokens import (
     ActionKey,
     ModifierKey,
@@ -23,7 +21,7 @@ class TestTokenType:
 
     def test_values_are_unique(self) -> None:
         """All TokenType members must have unique auto() values."""
-        values = [m.value for m in TokenType]
+        values = [m.value for m in TokenType.members()]
         assert len(values) == len(set(values)), (
             f"Expected {len(set(values))} unique values, got {len(values)}"
         )
@@ -252,10 +250,10 @@ class TestToken:
         assert token.line == 1
         assert token.column == 1
 
-    def test_immutable(self) -> None:
+    def test_mutable(self) -> None:
         token = Token(type=TokenType.INTEGER, value="42", line=2, column=5)
-        with pytest.raises(AttributeError):
-            token.value = "43"  # type: ignore[misc]
+        token.value = "43"
+        assert token.value == "43"
 
     def test_position_tracking(self) -> None:
         token = Token(type=TokenType.DELAY, value="DELAY", line=10, column=3)
@@ -267,7 +265,7 @@ class TestOperator:
     """Operator enum — all spec operators are present with correct values."""
 
     def test_values_are_unique(self) -> None:
-        values = [m.value for m in Operator]
+        values = [m.value for m in Operator.members()]
         assert len(values) == len(set(values)), (
             f"Expected {len(set(values))} unique values, got {len(values)}"
         )
@@ -313,12 +311,12 @@ class TestModifierKey:
     """ModifierKey enum — all modifier names present."""
 
     def test_values_are_unique(self) -> None:
-        values = [m.value for m in ModifierKey]
+        values = [m.value for m in ModifierKey.members()]
         assert len(values) == len(set(values))
 
     def test_all_modifiers_present(self) -> None:
         expected = {"CONTROL", "CTRL", "SHIFT", "ALT", "GUI", "WINDOWS", "COMMAND", "OPTION"}
-        actual = {m.value for m in ModifierKey}
+        actual = {m.value for m in ModifierKey.members()}
         assert actual == expected
 
     def test_case_sensitivity(self) -> None:
@@ -330,7 +328,7 @@ class TestActionKey:
     """ActionKey enum — all action keys present."""
 
     def test_values_are_unique(self) -> None:
-        values = [m.value for m in ActionKey]
+        values = [m.value for m in ActionKey.members()]
         assert len(values) == len(set(values))
 
     def test_navigation_present(self) -> None:
@@ -380,7 +378,7 @@ class TestImportHygiene:
         )
         tree = ast.parse(source)
 
-        allowed_top_level = {"enum", "dataclasses", "__future__"}
+        allowed_top_level = {"enum", "dataclasses", "__future__", "ducky"}
 
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):

@@ -6,8 +6,6 @@ log.  It is used by the test suite to verify that the interpreter produces
 the correct sequence of platform events without requiring any hardware.
 """
 
-from __future__ import annotations
-
 import random as _random
 
 from ducky.ast import LedState

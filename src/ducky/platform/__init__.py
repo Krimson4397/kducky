@@ -5,11 +5,8 @@ uses for all hardware I/O.  Desktop mock and Pico CircuitPython backends
 implement this protocol, keeping the interpreter platform-independent.
 """
 
-from __future__ import annotations
-
-from typing import Protocol, runtime_checkable
-
 from ducky.ast import LedState
+from ducky.utils.compat import Protocol, runtime_checkable
 
 __all__ = [
     "PayloadSignal",

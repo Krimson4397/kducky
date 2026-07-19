@@ -1,7 +1,5 @@
 """AST node visitor base class."""
 
-from __future__ import annotations
-
 
 class NodeVisitor:
     """Base class for AST visitors.

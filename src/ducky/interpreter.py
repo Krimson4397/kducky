@@ -2,9 +2,9 @@
 
 # ruff: noqa: N802 — visit_ClassName is the standard visitor pattern
 
-from __future__ import annotations
+print("[ducky.interpreter] loading module...")  # noqa: E402
 
-from ducky.ast import (
+from ducky.ast import (  # noqa: E402
     AssignStmt,
     BinaryOp,
     BreakStmt,
@@ -17,9 +17,11 @@ from ducky.ast import (
     DelayStmt,
     DollarIdentifierExpr,
     Expr,
+    ExtensionStmt,
     FunctionDef,
     GroupExpr,
     HoldStmt,
+    IdentifierStmt,
     IfStmt,
     InjectModStmt,
     IntegerExpr,
@@ -41,9 +43,9 @@ from ducky.ast import (
     VarDef,
     WhileStmt,
 )
-from ducky.platform import PlatformInterface
-from ducky.tokens import ActionKey, Operator
-from ducky.utils.visitor import NodeVisitor
+from ducky.platform import PlatformInterface  # noqa: E402
+from ducky.tokens import ActionKey, Operator  # noqa: E402
+from ducky.utils.visitor import NodeVisitor  # noqa: E402
 
 
 class InterpreterError(Exception):
@@ -78,6 +80,7 @@ class Interpreter(NodeVisitor):
         self._default_char_delay: int = 0
         self._last_stmt: Stmt | None = None
         self._loop_depth: int = 0
+        self._extensions: dict[str, tuple[Stmt, ...]] = {}
 
     def interpret(self, script: Script) -> None:
         """Execute a parsed Script against the platform."""
@@ -86,13 +89,15 @@ class Interpreter(NodeVisitor):
     # ── Script (top-level) ─────────────────────────────────────────────
 
     def visit_Script(self, node: Script) -> None:
-        # Phase 1: register all FunctionDef nodes (forward references work)
+        # Phase 1: register all FunctionDef and ExtensionStmt nodes
         for stmt in node.statements:
             if isinstance(stmt, FunctionDef):
                 self._functions[stmt.name] = (stmt.params, stmt.body)
-        # Phase 2: execute all non-FunctionDef statements
+            elif isinstance(stmt, ExtensionStmt):
+                self._extensions[stmt.name] = stmt.body
+        # Phase 2: execute all non-FunctionDef, non-ExtensionStmt statements
         for stmt in node.statements:
-            if not isinstance(stmt, FunctionDef):
+            if not isinstance(stmt, (FunctionDef, ExtensionStmt)):
                 self._visit_statement(stmt)
 
     def _visit_statement(self, stmt: Stmt) -> None:
@@ -322,6 +327,26 @@ class Interpreter(NodeVisitor):
             raise InterpreterError("RETURN outside function")
         value = self._eval_expr(node.value) if node.value is not None else 0
         raise _ReturnSignal(value & 0xFFFF)
+
+    # ── Extensions ──────────────────────────────────────────────────────
+
+    def visit_ExtensionStmt(self, node: ExtensionStmt) -> None:
+        """Register an extension block (no execution)."""
+        if node.name in self._extensions:
+            raise InterpreterError(
+                f"Duplicate extension: {node.name} already defined"
+            )
+        self._extensions[node.name] = node.body
+
+    def visit_IdentifierStmt(self, node: IdentifierStmt) -> None:
+        """Execute an extension body if registered, otherwise error."""
+        if node.name in self._extensions:
+            for stmt in self._extensions[node.name]:
+                self._visit_statement(stmt)
+        else:
+            raise InterpreterError(
+                f"Unknown identifier: {node.name}"
+            )
 
     # ── Expression evaluation ──────────────────────────────────────────
 

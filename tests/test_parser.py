@@ -31,6 +31,7 @@ from ducky.ast import (
     HidePayloadStmt,
     HoldStmt,
     IdentifierExpr,
+    IdentifierStmt,
     IfStmt,
     InjectModStmt,
     IntegerExpr,
@@ -631,16 +632,22 @@ class TestErrors:
             parse("END_IF\n")
 
     def test_unexpected_token(self) -> None:
-        with pytest.raises(ParseError, match="Unexpected identifier"):
-            parse("NOT_A_KEYWORD\n")
+        """Bare identifier now parses as IdentifierStmt (runtime error, not parse error)."""
+        script = parse("NOT_A_KEYWORD\n")
+        assert len(script.statements) == 1
+        assert isinstance(script.statements[0], IdentifierStmt)
+        assert script.statements[0].name == "NOT_A_KEYWORD"
 
     def test_invalid_dollar_standalone(self) -> None:
         with pytest.raises(ParseError, match="without assignment"):
             parse("$x\n")
 
     def test_identifier_not_call(self) -> None:
-        with pytest.raises(ParseError, match="Unexpected identifier"):
-            parse("myfunc\n")
+        """Bare identifier now parses as IdentifierStmt (runtime error, not parse error)."""
+        script = parse("myfunc\n")
+        assert len(script.statements) == 1
+        assert isinstance(script.statements[0], IdentifierStmt)
+        assert script.statements[0].name == "myfunc"
 
 
 # ── Full program tests ───────────────────────────────────────────────────────
