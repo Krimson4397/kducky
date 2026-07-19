@@ -10,6 +10,7 @@ raise ``ImportError`` only when instantiated without hardware).
 import random as _random
 
 from ducky.ast import LedState
+from ducky.layouts import load as _load_layout
 from ducky.platform import RestartPayloadSignal, StopPayloadSignal
 from ducky.tokens import ActionKey, ModifierKey
 
@@ -24,7 +25,6 @@ try:
     import storage
     import usb_hid
     from adafruit_hid.keyboard import Keyboard
-    from adafruit_hid.keyboard_layout_us import KeyboardLayoutUS
     from adafruit_hid.keycode import Keycode as _KC  # noqa: N814
 
     # ── Keycode alias compatibility ──────────────────────────────────────
@@ -227,7 +227,11 @@ class PicoPlatform:
 
         # ── HID keyboard ──────────────────────────────────────────
         self._hid_keyboard = Keyboard(usb_hid.devices)
-        self._layout = KeyboardLayoutUS(self._hid_keyboard)
+        try:
+            self._current_layout = _load_layout("US")
+        except ValueError:
+            self._current_layout = None
+        self._current_layout_code: str = "US"
 
         # ── Onboard LED ───────────────────────────────────────────
         self._led = digitalio.DigitalInOut(board.LED)
@@ -243,6 +247,7 @@ class PicoPlatform:
 
         # ── State ─────────────────────────────────────────────────
         self._default_delay_ms: int = 0
+        self._default_char_delay: int = 0
         self._saved_caps: bool = False
         self._saved_num: bool = False
         self._saved_scroll: bool = False
@@ -290,12 +295,30 @@ class PicoPlatform:
     # ── Typing ───────────────────────────────────────────────────────
 
     def type_string(self, text: str) -> None:
-        """Type a string character by character (US keyboard layout)."""
-        self._layout.write(text)
+        """Type a string character by character using current layout."""
+        layout = self._current_layout
+        if layout is None:
+            return  # no layout loaded, skip
+        default_char_delay = self._default_char_delay
+        for ch in text:
+            mod_byte, kc_byte = layout.keycode_for(ch)
+            if mod_byte == 0 and kc_byte == 0:
+                continue  # unmapped character, skip
+            kcs: list[int] = []
+            if mod_byte & 0x02:  # SHIFT
+                try:
+                    kcs.append(_KC.SHIFT)
+                except AttributeError:
+                    kcs.append(_KC.LEFT_SHIFT)
+            kcs.append(kc_byte)
+            self._hid_keyboard.press(*kcs)
+            self._hid_keyboard.release_all()
+            if default_char_delay > 0:
+                _time.sleep(default_char_delay / 1000.0)
 
     def type_string_ln(self, text: str) -> None:
         """Type a string followed by Enter."""
-        self._layout.write(text)
+        self.type_string(text)
         self._hid_keyboard.press(_KC.ENTER)
         self._hid_keyboard.release_all()
 
@@ -471,3 +494,17 @@ class PicoPlatform:
     def random_int(self, min_val: int, max_val: int) -> int:
         """Return a random integer in [*min_val*, *max_val*] (inclusive)."""
         return _RNG.randint(min_val, max_val)
+
+    # ── Keyboard Layout ──────────────────────────────────────────────
+
+    def set_layout(self, code: str) -> None:
+        """Switch keyboard layout by language code."""
+        try:
+            self._current_layout = _load_layout(code)
+            self._current_layout_code = code
+        except ValueError:
+            pass  # Unknown layout — keep current
+
+    def get_layout(self) -> str:
+        """Return the current keyboard layout code."""
+        return self._current_layout_code

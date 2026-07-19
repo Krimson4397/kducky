@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M14 — Pico Platform Implementation complete.  
+**Current status:** M15 — Keyboard Layout Support complete.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -156,11 +156,11 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.2.0 (alpha)                    |
-| Completed Milestone   | M14 — Pico Platform Implementation |
+| Completed Milestone   | M15 — Keyboard Layout Support    |
 | Current Branch        | main                             |
-| Last Commit           | Will be updated after commit     |
+| Last Commit           | e69d5e2                          |
 | Repository Status     | Clean working tree               |
-| Next Milestone        | M15 — Keyboard Layout Support |
+| Next Milestone        | M16 — DEFINE Preprocessor        |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
@@ -173,6 +173,22 @@ This section **must** be updated at the completion of every milestone. It descri
 - `src/ducky/utils/compat.py` — CircuitPython compatibility shim (dataclass, enum, Protocol fallbacks)
 - `src/ducky/layouts/__init__.py` — Keyboard layout loader module with caching
 - `src/ducky/layouts/us.json` — US keyboard layout (95 printable ASCII characters)
+- `src/ducky/layouts/gb.json` — GB keyboard layout (diff from US)
+- `src/ducky/layouts/de.json` — DE keyboard layout (diff from US)
+- `src/ducky/layouts/fr.json` — FR keyboard layout (diff from US)
+- `src/ducky/layouts/es.json` — ES keyboard layout (diff from US)
+- `src/ducky/layouts/it.json` — IT keyboard layout (diff from US)
+- `src/ducky/layouts/jp.json` — JP keyboard layout (diff from US)
+- `src/ducky/layouts/dk.json` — DK keyboard layout (diff from US)
+- `src/ducky/layouts/no.json` — NO keyboard layout (diff from US)
+- `src/ducky/layouts/se.json` — SE keyboard layout (diff from US)
+- `src/ducky/layouts/fi.json` — FI keyboard layout (diff from US)
+- `src/ducky/layouts/pt.json` — PT keyboard layout (diff from US)
+- `src/ducky/layouts/br.json` — BR keyboard layout (diff from US)
+- `src/ducky/layouts/ru.json` — RU keyboard layout (diff from US)
+- `src/ducky/layouts/pl.json` — PL keyboard layout (diff from US)
+- `src/ducky/layouts/cz.json` — CZ keyboard layout (diff from US)
+- `tests/test_layouts.py` — 9 tests for layout loader, platform set_layout/get_layout, and interpreter DuckyLangStmt
 - `deploy.py` — Auto-discovery deployment script
 - `DEPLOYMENT.md` — Deployment documentation
 
@@ -184,12 +200,12 @@ This section **must** be updated at the completion of every milestone. It descri
 - `src/ducky/ast/nodes.py` — @enum decorators, __slots__ on 32 classes, __defaults__ on 3, IdentifierStmt node, ComboStmt.key type widened
 - `src/ducky/lexer.py` — isalnum→isalpha/isdigit, diagnostic print
 - `src/ducky/parser.py` — IdentifierStmt support, diagnostic print
-- `src/ducky/interpreter.py` — ExtensionStmt support, IdentifierStmt visitor, diagnostic print
-- `src/ducky/platform/__init__.py` — compat imports
-- `src/ducky/platform/desktop.py` — set_layout/get_layout methods, DESKTOP_PLATFORM import fallback
+- `src/ducky/interpreter.py` — ExtensionStmt support, IdentifierStmt visitor, visit_DuckyLangStmt, diagnostic print
+- `src/ducky/platform/__init__.py` — Added set_layout/get_layout to PlatformInterface protocol
+- `src/ducky/platform/desktop.py` — Added set_layout/get_layout implementations, _current_layout field
 - `src/ducky/utils/__init__.py` — compat imports
 - `src/ducky/utils/visitor.py` — compat imports
-- `src/platform/pico/backends.py` — Keycode alias layer, random.Random fallback, _DIGIT_NAMES constant, string key handler
+- `src/platform/pico/backends.py` — Rewrote type_string to use Layout class, added set_layout/get_layout, _default_char_delay field
 - `src/platform/pico/main.py` — traceback fix, per-phase error handling
 - `tests/test_tokens.py` — iteration changes
 - `tests/test_ast.py` — iteration changes
@@ -200,7 +216,8 @@ This section **must** be updated at the completion of every milestone. It descri
 
 ### Tests Executed
 
-- `pytest tests/ -x -q` — 549 passed, 6 skipped
+- `pytest tests/test_layouts.py -v` — 9 passed
+- `pytest tests/ -x -q` — 558 passed, 6 skipped
 - `ruff check src/ tests/` — All checks passed
 
 ### Acceptance Criteria Completed
@@ -214,6 +231,14 @@ This section **must** be updated at the completion of every milestone. It descri
 - [x] `main.py` is a drop-in runner for auto-execution on Pico
 - [x] Signal methods (`restart_payload`, `stop_payload`) raise correct exceptions
 - [x] All 549 tests pass, ruff clean
+- [x] 16 keyboard layout JSON files (US + 15 international) under `src/ducky/layouts/`
+- [x] Layout loader module (`load`, `available`, `add_layout`) with caching and US-fallback inheritance
+- [x] `set_layout`/`get_layout` added to `PlatformInterface` protocol
+- [x] `DesktopPlatform` implements `set_layout`/`get_layout` with call recording
+- [x] `PicoPlatform.type_string` rewritten to use `Layout.keycode_for()` instead of `KeyboardLayoutUS`
+- [x] `visit_DuckyLangStmt` in interpreter calls `platform.set_layout()`
+- [x] 9 layout tests pass (layout loading, inheritance, case insensitivity, platform, interpreter)
+- [x] All 558 tests pass, ruff clean
 
 ### Remaining Milestones
 
@@ -245,9 +270,7 @@ Milestones 15–20 from the implementation roadmap.
 
 ### Notes for the Next Session
 
-Milestone 14 is complete. The `PicoPlatform` class is ready for hardware testing on the Raspberry Pi Pico 2 W. Key items to verify on real hardware: all HID keycode mappings in `_ACTION_KEY_MAP`, button GPIO logic, LED operation, and the payload runner in `main.py`. The 6 skipped tests will validate key map completeness when CircuitPython + `adafruit_hid` are available.
-
-The next milestone (M15 — Keyboard Layout Support) depends on M8 (PlatformInterface protocol). It creates keyboard layout JSON files for 16 languages (US, GB, DE, FR, ES, IT, JP, DK, NO, SE, FI, PT, BR, RU, PL, CZ), a layout loader module with caching, and runtime layout switching via DUCKY_LANG. See the roadmap for full acceptance criteria.
+Milestone 15 is complete. All 16 keyboard layout JSON files exist under `src/ducky/layouts/`, the layout loader module supports caching and US-fallback inheritance, and runtime switching via `DUCKY_LANG` is implemented in the interpreter and both platform backends. All 9 layout tests pass, and the full suite reports 558 passed with 6 skipped.
 
 ---
 
@@ -261,7 +284,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 15 — Keyboard Layout Support.
+5. Resume from Milestone 16 — DEFINE Preprocessor.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.

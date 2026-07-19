@@ -158,3 +158,13 @@ class PlatformInterface(Protocol):
     def random_int(self, min_val: int, max_val: int) -> int:
         """Return a random integer in [*min_val*, *max_val*] (inclusive)."""
         ...
+
+    # ── Keyboard Layout ──────────────────────────────────────────────
+
+    def set_layout(self, code: str) -> None:
+        """Switch keyboard layout by language code (e.g. 'DE', 'GB')."""
+        ...
+
+    def get_layout(self) -> str:
+        """Return the current keyboard layout code."""
+        ...

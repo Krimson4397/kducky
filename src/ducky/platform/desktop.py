@@ -37,6 +37,7 @@ class DesktopPlatform:
         self._saved_num: bool = False
         self._saved_scroll: bool = False
         self._attack_mode_saved: tuple[str, ...] | None = None
+        self._current_layout: str = "US"
 
     def _record(self, name: str, *args: object) -> None:
         self.calls.append((name, *args))
@@ -155,3 +156,13 @@ class DesktopPlatform:
     def random_int(self, min_val: int, max_val: int) -> int:
         self._record("random_int", min_val, max_val)
         return _random.randint(min_val, max_val)
+
+    # ── Keyboard Layout ────────────────────────────────────────────────
+
+    def set_layout(self, code: str) -> None:
+        self._record("set_layout", code)
+        self._current_layout = code
+
+    def get_layout(self) -> str:
+        self._record("get_layout")
+        return self._current_layout

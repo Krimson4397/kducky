@@ -16,6 +16,7 @@ from ducky.ast import (  # noqa: E402
     DefaultDelayStmt,
     DelayStmt,
     DollarIdentifierExpr,
+    DuckyLangStmt,
     Expr,
     ExtensionStmt,
     FunctionDef,
@@ -347,6 +348,10 @@ class Interpreter(NodeVisitor):
             raise InterpreterError(
                 f"Unknown identifier: {node.name}"
             )
+
+    def visit_DuckyLangStmt(self, node: DuckyLangStmt) -> None:
+        """Switch keyboard layout at runtime per DUCKY_LANG."""
+        self.platform.set_layout(node.language)
 
     # ── Expression evaluation ──────────────────────────────────────────
 
