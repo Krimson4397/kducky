@@ -16,7 +16,14 @@ __all__ = [
     "available",
 ]
 
-_LAYOUT_DIR: str = os.path.dirname(os.path.abspath(__file__))
+# CircuitPython: os.path doesn't exist; use simple string split
+_LAYOUT_DIR: str = (
+    __file__.rsplit("/", 1)[0]
+    if "/" in __file__
+    else __file__.rsplit("\\", 1)[0]
+    if "\\" in __file__
+    else "."
+)
 _cache: dict[str, "Layout"] = {}
 _DEFAULT_LAYOUT: str = "US"
 
@@ -72,11 +79,11 @@ def load(code: str = _DEFAULT_LAYOUT) -> Layout:
         return cached
 
     # Load the layout JSON
-    path = os.path.join(_LAYOUT_DIR, f"{code_upper}.json")
+    path = f"{_LAYOUT_DIR}/{code_upper}.json"
     try:
         with open(path, encoding="utf-8") as f:
             raw: dict[str, str] = json.load(f)
-    except FileNotFoundError:
+    except OSError:
         raise ValueError(f"Unknown keyboard layout: {code!r}") from None
 
     # Parse into (modifier, keycode) tuples

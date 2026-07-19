@@ -159,7 +159,7 @@ This section **must** be updated at the completion of every milestone. It descri
 | Completed Milestone   | M15 — Keyboard Layout Support    |
 | Current Branch        | main                             |
 | Last Commit           | e69d5e2                          |
-| Repository Status     | Clean working tree               |
+| Repository Status     | Clean working tree (M15 fixup)   |
 | Next Milestone        | M16 — DEFINE Preprocessor        |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
@@ -172,7 +172,7 @@ This section **must** be updated at the completion of every milestone. It descri
 - `tests/test_pico_platform.py` — 17 contract tests verifying: all 26 protocol methods implemented, no extra public methods, signatures match, keycode maps exhaustive (skipped on desktop), signal behavior matches DesktopPlatform, helper enums importable.
 - `src/ducky/utils/compat.py` — CircuitPython compatibility shim (dataclass, enum, Protocol fallbacks)
 - `src/ducky/layouts/__init__.py` — Keyboard layout loader module with caching
-- `src/ducky/layouts/us.json` — US keyboard layout (95 printable ASCII characters)
+- `src/ducky/layouts/US.json` — US keyboard layout (95 printable ASCII characters)
 - `src/ducky/layouts/gb.json` — GB keyboard layout (diff from US)
 - `src/ducky/layouts/de.json` — DE keyboard layout (diff from US)
 - `src/ducky/layouts/fr.json` — FR keyboard layout (diff from US)
@@ -207,6 +207,7 @@ This section **must** be updated at the completion of every milestone. It descri
 - `src/ducky/utils/visitor.py` — compat imports
 - `src/platform/pico/backends.py` — Rewrote type_string to use Layout class, added set_layout/get_layout, _default_char_delay field
 - `src/platform/pico/main.py` — traceback fix, per-phase error handling
+- `src/ducky/layouts/__init__.py` — CircuitPython compat: removed os.path usage, FileNotFoundError→OSError
 - `tests/test_tokens.py` — iteration changes
 - `tests/test_ast.py` — iteration changes
 - `tests/test_pico_platform.py` — iteration changes
@@ -218,6 +219,7 @@ This section **must** be updated at the completion of every milestone. It descri
 
 - `pytest tests/test_layouts.py -v` — 9 passed
 - `pytest tests/ -x -q` — 558 passed, 6 skipped
+- `pytest tests/ -x -q` — 558 passed, 6 skipped (M15 fixup)
 - `ruff check src/ tests/` — All checks passed
 
 ### Acceptance Criteria Completed
