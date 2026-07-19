@@ -10,9 +10,9 @@ keyboard to any computer.
 ## Quick Start (Pico)
 
 1. Download **CircuitPython 10.x** for the Pico 2 W
-   ([circuitpython.org](http://google.com)) and flash it via BOOTSEL mode.
+   ([circuitpython.org](https://circuitpython.org/board/raspberry_pi_pico2_w/)) and flash it via BOOTSEL mode.
 2. Download the **Adafruit HID library** from the
-   [CircuitPython library bundle](http://google.com) and copy `adafruit_hid/`
+   [CircuitPython library bundle](https://circuitpython.org/libraries) and copy `adafruit_hid/`
    to `CIRCUITPY/lib/`.
 3. Run the deploy script to copy kducky to your Pico:
    ```bash
