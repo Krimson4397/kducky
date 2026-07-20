@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M18 — Complete Interpreter (all 13 AST visitors implemented).  
+**Current status:** M18 — Complete Interpreter + payload creation (all 13 AST visitors implemented, attack payloads).  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -158,7 +158,7 @@ This section **must** be updated at the completion of every milestone. It descri
 | Project Version       | 0.2.0 (alpha)                    |
 | Completed Milestone   | M18 — Complete Interpreter       |
 | Current Branch        | main                             |
-| Last Commit           | b508745                          |
+| Last Commit           | eadc1c8                          |
 | Repository Status     | Clean working tree                 |
 | Next Milestone        | M19 — Hardware Validation (Pico) |
 | Blocking Issues       | None                             |
@@ -168,6 +168,9 @@ This section **must** be updated at the completion of every milestone. It descri
 
 - `payloads/payload.dd` — Safe regression payload (v1.1, no system key combos). Exercises all interpreter features and runs to completion (no crashes). Replaces `safe_regression.dd`.
 - `payloads/regression_test.dd` — Original regression payload (v1.0, includes Windows UI key combos for manual testing with caution).
+- `payloads/pwn_wifi.dd` — Attack payload: ATTACKMODE HID STORAGE → PowerShell as Admin → disable Defender → run PS1 from DUCKY drive (visible window).
+- `payloads/pwn_wifi_hidden.dd` — Same as pwn_wifi.dd but launches via Start-Process -WindowStyle Hidden (no visible window).
+- `payloads/sy_cred.ps1` — PowerShell script: browser credential extraction (Chrome/Brave/Firefox/Edge), WiFi password dump, system info gathering. Called by pwn_wifi payloads.
 
 ### Files Modified
 
@@ -261,6 +264,7 @@ Milestones 19–20 from the implementation roadmap.
 - 6 key-map completeness tests skip on desktop (require `adafruit_hid` for `_KC` constants).
 - Some exotic HID keycodes (COMPOSE, PROPS, UNDO, PASTE, KEYPAD_00, KEYPAD_000) use `getattr` fallbacks that need verification on real hardware.
 - `DESKTOP_PLATFORM` import fallback for `set_layout`/`get_layout` may need updating when PicoPlatform implements layout switching.
+- Preprocessor cannot substitute `#NAME` references inside `"..."` double-quoted strings. For preprocessor variables in PowerShell argument strings, hardcode the value instead (e.g., `Start-Process -ArgumentList "-File filename.ps1"` instead of `"-File #PS1"`).
 
 ### Technical Debt
 
