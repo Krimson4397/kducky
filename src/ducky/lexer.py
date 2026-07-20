@@ -35,8 +35,6 @@ _KEYWORDS: dict[str, TokenType] = {
     "RETURN": TokenType.RETURN,
     # Variable
     "VAR": TokenType.VAR,
-    # Preprocessor
-    "DEFINE": TokenType.DEFINE,
     # Comments (needed for recognition so lexer skips them)
     "REM": TokenType.REM,
     "REM_BLOCK": TokenType.REM_BLOCK,

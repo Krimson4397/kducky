@@ -22,6 +22,7 @@ from ducky.ast import LedState  # noqa: I001 — sys.path set above for Pico
 from ducky.interpreter import Interpreter
 from ducky.lexer import DuckyLexer
 from ducky.parser import DuckyParser
+from ducky.preprocessor import Preprocessor
 from ducky.platform import RestartPayloadSignal, StopPayloadSignal
 from platform.pico.backends import PicoPlatform
 
@@ -47,6 +48,16 @@ def main() -> None:
             source = f.read()
     except OSError as e:
         print("[pico] ERROR: no payload file found")
+        _print_exc(e)
+        platform.set_led(LedState.R)
+        return
+
+    # ── Preprocess ────────────────────────────────────────────────
+    try:
+        print("[pico] preprocessing...")
+        source = Preprocessor().preprocess(source)
+    except Exception as e:
+        print("[pico] ERROR during preprocessing")
         _print_exc(e)
         platform.set_led(LedState.R)
         return

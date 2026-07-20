@@ -463,14 +463,6 @@ class TestEdgeCases:
         assert result[0].type is TokenType.IDENTIFIER
         assert result[0].value == "STRINGER"
 
-    def test_define_preprocessor(self) -> None:
-        """DEFINE #NAME pattern."""
-        result = tokenize("DEFINE #DELAY 2000")
-        assert result[0] == tok(TokenType.DEFINE, "DEFINE")
-        assert result[1] == tok(TokenType.HASH_IDENTIFIER, "DELAY", col=8)
-        # After DEFINE(6) + space(7) + #DELAY(8-13) + space(14) → "2000" at col 15
-        assert result[2] == tok(TokenType.INTEGER, "2000", col=15)
-
     def test_mixed_operators_in_expression(self) -> None:
         """Multiple operators in one expression tokenise correctly."""
         result = tokenize("$x = $y + 1")

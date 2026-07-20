@@ -18,7 +18,6 @@ from ducky.ast import (
     ContinueStmt,
     DefaultCharDelayStmt,
     DefaultDelayStmt,
-    DefineStmt,
     DelayStmt,
     DisableButtonStmt,
     DollarIdentifierExpr,
@@ -375,11 +374,6 @@ class TestStatements:
     def test_ducky_lang_stmt(self) -> None:
         stmt = assert_single_stmt("DUCKY_LANG DE\n", DuckyLangStmt)
         assert stmt.language == "DE"
-
-    def test_define_stmt(self) -> None:
-        stmt = assert_single_stmt("DEFINE #NAME value\n", DefineStmt)
-        assert stmt.name == "NAME"
-        assert stmt.value == "value"
 
     def test_extension_def(self) -> None:
         source = "EXTENSION myext\nRESET\nEND_EXTENSION\n"
@@ -903,11 +897,6 @@ class TestStatementEdgeCases:
         assert isinstance(stmt, ExtensionStmt)
         assert len(stmt.body) == 0
 
-    def test_define_multi_word(self) -> None:
-        """DEFINE with multi-word value."""
-        stmt = assert_single_stmt("DEFINE #MSG Hello World\n", DefineStmt)
-        assert stmt.name == "MSG"
-        assert stmt.value == "Hello World"
 
 
 # ── Expression edge cases ────────────────────────────────────────────────
@@ -1030,11 +1019,6 @@ class TestErrorEdgeCases:
         with pytest.raises(ParseError, match="REPEAT must follow"):
             parse("FUNCTION foo()\nRESET\nEND_FUNCTION\nREPEAT 3\n")
 
-    def test_define_without_hash(self) -> None:
-        """DEFINE without # should fail."""
-        with pytest.raises(ParseError, match="Expected #NAME"):
-            parse("DEFINE NAME value\n")
-
     def test_if_without_condition(self) -> None:
         """IF THEN without condition should fail."""
         with pytest.raises(ParseError):
@@ -1123,15 +1107,15 @@ class TestFullProgramEdgeCases:
         assert len(script.statements) == 0
 
     def test_defines_only(self) -> None:
-        """Program with only DEFINE statements."""
-        source = (
-            "DEFINE #DELAY 1000\n"
-            "DEFINE #TEXT Hello\n"
-        )
-        script = parse(source)
-        assert len(script.statements) == 2
-        assert isinstance(script.statements[0], DefineStmt)
-        assert isinstance(script.statements[1], DefineStmt)
+        """Program with only DEFINE statements produces empty script after preprocessing."""
+        from ducky.lexer import DuckyLexer
+        from ducky.preprocessor import Preprocessor
+
+        source = "DEFINE #DELAY 1000\nDEFINE #TEXT Hello\n"
+        preprocessed = Preprocessor().preprocess(source)
+        tokens = DuckyLexer().tokenize(preprocessed)
+        script = DuckyParser(tokens).parse()
+        assert len(script.statements) == 0
 
     def test_nested_if_while_compound(self) -> None:
         """Deeply nested IF inside WHILE inside IF."""

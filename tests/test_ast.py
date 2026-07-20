@@ -23,7 +23,6 @@ from ducky.ast import (
     ContinueStmt,
     DefaultCharDelayStmt,
     DefaultDelayStmt,
-    DefineStmt,
     DelayStmt,
     DisableButtonStmt,
     DollarIdentifierExpr,
@@ -268,11 +267,6 @@ class TestStmtNodes:
         node = ExtensionStmt(name="ext", body=(ResetStmt(),))
         assert node.name == "ext"
         assert len(node.body) == 1
-
-    def test_define_stmt(self) -> None:
-        node = DefineStmt(name="NAME", value="value")
-        assert node.name == "NAME"
-        assert node.value == "value"
 
     def test_call_stmt_node(self) -> None:
         node = CallStmt(name="foo")

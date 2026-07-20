@@ -37,9 +37,6 @@ class TestTokenType:
     def test_variable_keyword_present(self) -> None:
         assert hasattr(TokenType, "VAR")
 
-    def test_preprocessor_keyword_present(self) -> None:
-        assert hasattr(TokenType, "DEFINE")
-
     def test_comment_keywords_present(self) -> None:
         for name in ("REM", "REM_BLOCK", "END_REM"):
             assert hasattr(TokenType, name), f"Missing comment token: {name}"

@@ -429,16 +429,6 @@ class ExtensionStmt(Stmt):
     body: tuple[Stmt, ...]
 
 
-@dataclass(frozen=True)
-class DefineStmt(Stmt):
-    """Preprocessor constant definition (``DEFINE #NAME value``)."""
-
-    __slots__ = ("name", "value")
-
-    name: str
-    value: str
-
-
 # ── Expressions ─────────────────────────────────────────────────────
 
 

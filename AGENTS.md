@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M15/16 — HOLD/RELEASE modifiers + INJECT_MOD spec fix + DefineStmt prep.  
+**Current status:** M16 — DEFINE Preprocessor.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -156,9 +156,9 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.2.0 (alpha)                    |
-| Completed Milestone   | M15/16 — HOLD/RELEASE modifiers + INJECT_MOD spec fix |
+| Completed Milestone   | M16 — DEFINE Preprocessor        |
 | Current Branch        | main                             |
-| Last Commit           | 9ef1832                          |
+| Last Commit           | 49e010c                          |
 | Repository Status     | Clean working tree                 |
 | Next Milestone        | M16 — DEFINE Preprocessor        |
 | Blocking Issues       | None                             |
@@ -191,20 +191,25 @@ This section **must** be updated at the completion of every milestone. It descri
 - `tests/test_layouts.py` — 9 tests for layout loader, platform set_layout/get_layout, and interpreter DuckyLangStmt
 - `deploy.py` — Auto-discovery deployment script
 - `DEPLOYMENT.md` — Deployment documentation
+- `src/ducky/preprocessor.py` — `Preprocessor` class (`preprocess(source: str) -> str`) for compile-time DEFINE constant substitution at the text level, before lexing. Strips DEFINE lines (preserves line numbering with blanks), substitutes `#NAME` references outside `"..."` quoted strings, raises `PreprocessorError` on undefined references. CircuitPython-compatible (uses `isalpha()/isdigit()` instead of `isalnum()`).
+- `tests/test_preprocessor.py` — 25 tests covering: basic substitution (integer, multi-word, string body), multiple refs per line, empty value, DEFINE line removal, case-insensitive keyword, quoted string protection (including `\"` escapes), error conditions (undefined constant, missing hash, hash without name, keyword only), edge cases (bare `#`, partial name match, forward reference, state clearing, blank/comment preservation, no-op input).
 
 ### Files Modified
 
-- `plans/DuckyScript3_Engineering_Spec.md` — HOLD/RELEASE grammar relaxed to accept `ModifierKey`; §5.3 updated with official Hak5 holding-keys example showing INJECT_MOD required before HOLD but NOT before RELEASE
-- `src/ducky/ast/nodes.py` — `HoldStmt.key` and `ReleaseStmt.key` types widened from `ActionKey` to `object` (to also accept `ModifierKey`)
-- `src/ducky/parser.py` — HOLD now requires `INJECT_MOD` preceding modifier keys; RELEASE accepts modifiers without INJECT_MOD; `_inject_mod_pending` flag tracks INJECT_MOD state
-- `src/platform/pico/backends.py` — `_hid_keycode_for` now handles `ModifierKey` instances (not just `ActionKey` and `str`)
-- `tests/test_parser.py` — 7 new tests for HOLD/RELEASE with modifier keys (INJECT_MOD requirement, full sequences, multiple modifiers)
-- `tests/test_interpreter_keyboard.py` — `test_hold_release_modifier_key` verifies interpreter dispatches hold_key/release_key with `ModifierKey.CTRL`
-- `tests/test_integration.py` — `test_hold_release_modifier` full end-to-end test with SHIFT modifier
+- `src/ducky/tokens.py` — Removed `DEFINE = auto()` from `TokenType` enum. DEFINE is no longer a token type — it's preprocessor-only.
+- `src/ducky/lexer.py` — Removed `"DEFINE": TokenType.DEFINE` from `_KEYWORDS` dict. Lexer no longer produces DEFINE tokens.
+- `src/ducky/ast/nodes.py` — Removed `DefineStmt` dataclass entirely. Dead code that could reach the interpreter.
+- `src/ducky/ast/__init__.py` — Removed `DefineStmt` from imports and `__all__`.
+- `src/ducky/parser.py` — Removed `_parse_define_stmt` method, DEFINE dispatch branch, and `DefineStmt` import. Parser no longer knows about DEFINE.
+- `src/platform/pico/main.py` — Added `Preprocessor` import and call before lexing. This was the root cause of the hardware regression: the Pico runner bypassed the preprocessor.
+- `tests/test_parser.py` — Removed `DefineStmt` import and 3 test methods. Updated `test_defines_only` to run through Preprocessor → Lexer → Parser.
+- `tests/test_lexer.py` — Removed `test_define_preprocessor` (DEFINE is no longer a lexer keyword).
+- `tests/test_ast.py` — Removed `DefineStmt` import and test.
+- `tests/test_tokens.py` — Removed `test_preprocessor_keyword_present` (`TokenType.DEFINE` no longer exists).
 
 ### Tests Executed
 
-- `pytest tests/ -x -q` — 565 passed, 6 skipped
+- `pytest tests/ -x -q` — 587 passed, 6 skipped (6 tests removed: DefineStmt dead code removed from lexer/parser/AST)
 - `ruff check src/ tests/` — All checks passed
 
 ### Acceptance Criteria Completed
@@ -234,10 +239,28 @@ This section **must** be updated at the completion of every milestone. It descri
 - [x] 7 new parser tests cover all HOLD/RELEASE modifier scenarios
 - [x] Interpreter integration test verifies end-to-end SHIFT modifier sequence
 - [x] All 565 tests pass, ruff clean
+- [x] `src/ducky/preprocessor.py` created with `Preprocessor` class and `PreprocessorError`
+- [x] Preprocessor scans source for `DEFINE #NAME value` lines (case-insensitive keyword)
+- [x] DEFINE lines replaced with blank lines to preserve source line numbering
+- [x] `#NAME` references substituted with literal values in all subsequent lines
+- [x] Substitution skipped inside `"..."` quoted strings (handles `\"` escapes)
+- [x] Undefined `#NAME` reference raises `PreprocessorError` with line number
+- [x] `DEFINE #DELAY 2000` + `DELAY #DELAY` produces `DELAY 2000`
+- [x] `DEFINE #TEXT Hello World` + `STRINGLN #TEXT` types "Hello World"
+- [x] `DEFINE #X` with no value yields empty string for `#X`
+- [x] Preprocessor integrated into integration test pipeline (`_execute` helper)
+- [x] 25 preprocessor-specific tests pass
+- [x] 3 new integration tests for DEFINE
+- [x] Pico runner `main.py` calls Preprocessor before Lexer (architectural fix)
+- [x] `DefineStmt` AST node class removed — DEFINE is exclusively preprocessor-only
+- [x] `TokenType.DEFINE` removed from lexer — no token path for DEFINE exists
+- [x] Parser no longer has `_parse_define_stmt` — no AST path for DEFINE exists
+- [x] All existing parser/lexer tests updated to remove DEFINE references
+- [x] All 587 tests pass, ruff clean
 
 ### Remaining Milestones
 
-Milestones 15–20 from the implementation roadmap.
+Milestones 17–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -265,9 +288,23 @@ Milestones 15–20 from the implementation roadmap.
 
 ### Notes for the Next Session
 
-Milestone 15/16 is complete. HOLD/RELEASE now accept modifier keys (key type widened to `object`). INJECT_MOD is required before HOLD of a modifier key but NOT before RELEASE, matching official Hak5 documentation. The Engineering Spec §5.3 has been corrected with the official holding-keys example. All 565 tests pass with 6 skipped, and ruff reports clean.
+Milestone 16 is complete. A hardware regression found that `main.py` (the Pico runner) bypassed the preprocessor, causing `DefineStmt` AST nodes to reach the interpreter. Architectural fix:
 
-The `DefineStmt` AST node exists but no preprocessor pass has been implemented yet — that is the core work of Milestone 16. The project is ready for Milestone 16 (DEFINE Preprocessor).
+- `DefineStmt` is **removed** from the codebase entirely. DEFINE is exclusively a **preprocessor-only** construct. The preprocessor strips DEFINE lines and substitutes `#NAME` references at the text level, before lexing.
+- The lexer no longer produces `DEFINE` tokens — `TokenType.DEFINE` is removed.
+- The parser no longer has `_parse_define_stmt` — no AST path for DEFINE exists.
+- The Pico runner `main.py` now calls `Preprocessor().preprocess()` before lexing, matching the test helper pipeline exactly.
+- Desktop tests passed but Pico exposed the bug because the test helper `_execute()` included the preprocessor, while `main.py` did not. The pipelines are now identical.
+
+Key design decisions:
+- DEFINE is a **text-level preprocessor**, not a runtime construct. It operates on raw source text before the lexer sees it.
+- `#NAME` is substituted EVERYWHERE outside `"..."` quoted strings — this includes STRING/STRINGLN body text, DELAY arguments, etc.
+- DEFINE lines are replaced with blank lines (not removed) to preserve source line numbering for error reporting.
+- `HashIdentifierExpr` remains in the AST for potential future use, but is never reached in production since the preprocessor catches `#NAME` references first.
+- The `_execute` test helper includes the preprocessor step, so all integration tests run through the full pipeline.
+- 587 tests pass, 6 skipped (Pico hardware-dependent).
+
+The project is ready for Milestone 17 (Error Reporting & Recovery).
 
 ---
 
@@ -281,7 +318,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 16 — DEFINE Preprocessor.
+5. Resume from Milestone 17 — Error Reporting & Recovery.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.

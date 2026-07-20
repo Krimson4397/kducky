@@ -19,7 +19,6 @@ from ducky.ast import (  # noqa: E402
     ContinueStmt,
     DefaultCharDelayStmt,
     DefaultDelayStmt,
-    DefineStmt,
     DelayStmt,
     DisableButtonStmt,
     DollarIdentifierExpr,
@@ -468,10 +467,6 @@ class DuckyParser:
         # ── Ducky language ──
         if token.type == TokenType.DUCKY_LANG:
             return self._parse_ducky_lang_stmt()
-
-        # ── DEFINE ──
-        if token.type == TokenType.DEFINE:
-            return self._parse_define_stmt()
 
         # ── Modifier keys → combo statement ──
         if token.type in _MODIFIER_TOKEN_TYPES:
@@ -1000,30 +995,6 @@ class DuckyParser:
         self._previous_stmt_was_block_end = True
         return ExtensionStmt(
             name=name_token.value, body=tuple(body)
-        )
-
-    # ── DEFINE ───────────────────────────────────────────────────────────────
-
-    def _parse_define_stmt(self) -> DefineStmt:
-        self._consume(TokenType.DEFINE, "Expected DEFINE")
-        hash_token = self._consume(
-            TokenType.HASH_IDENTIFIER,
-            "Expected #NAME after DEFINE",
-        )
-        value_parts: list[str] = []
-        while not self._check(TokenType.NEWLINE) and not self._at_end():
-            value_parts.append(self._advance().value)
-        if not value_parts:
-            token = self._peek()
-            raise ParseError(
-                "Expected value after DEFINE #NAME",
-                token.line,
-                token.column,
-            )
-        self._consume_newline()
-        self._previous_stmt_was_block_end = False
-        return DefineStmt(
-            name=hash_token.value, value=" ".join(value_parts)
         )
 
     # ── Expression parsing (precedence climbing) ─────────────────────────────
