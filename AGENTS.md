@@ -158,8 +158,8 @@ This section **must** be updated at the completion of every milestone. It descri
 | Project Version       | 0.2.0 (alpha)                    |
 | Completed Milestone   | M15 — Keyboard Layout Support    |
 | Current Branch        | main                             |
-| Last Commit           | ddc27b6                          |
-| Repository Status     | Clean working tree (M15 fixup)   |
+| Last Commit           | 1854f7d                          |
+| Repository Status     | Clean working tree                 |
 | Next Milestone        | M16 — DEFINE Preprocessor        |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
@@ -214,6 +214,8 @@ This section **must** be updated at the completion of every milestone. It descri
 - `tests/test_parser.py` — IdentifierStmt test updates
 - `AGENTS.md` — Session handoff updated
 - `plans/DuckyScript3_Implementation_Roadmap.md` — (if modified)
+- `README.md` — Rewrote with usage, compatibility, quick-start sections, real links
+- `deploy.py` — Fixed to also copy `.json` layout files (was `.py`-only, broke STRING on Pico)
 
 ### Tests Executed
 
@@ -221,6 +223,9 @@ This section **must** be updated at the completion of every milestone. It descri
 - `pytest tests/ -x -q` — 558 passed, 6 skipped
 - `pytest tests/ -x -q` — 558 passed, 6 skipped (M15 fixup)
 - `ruff check src/ tests/` — All checks passed
+- `git pull origin main` — Synced README.md real links from GitHub
+- `pytest` — 558 passed, 6 skipped (verified no regressions)
+- `python deploy.py --dry-run D:\` — Verifies 36 files discovered (was 19), including all 16 `.json` layouts
 
 ### Acceptance Criteria Completed
 
@@ -273,6 +278,10 @@ Milestones 15–20 from the implementation roadmap.
 ### Notes for the Next Session
 
 Milestone 15 is complete. All 16 keyboard layout JSON files exist under `src/ducky/layouts/`, the layout loader module supports caching and US-fallback inheritance, and runtime switching via `DUCKY_LANG` is implemented in the interpreter and both platform backends. All 9 layout tests pass, and the full suite reports 558 passed with 6 skipped.
+
+**Known bug fix:** `deploy.py` was only copying `.py` files, so 16 keyboard layout `.json` files were never deployed to the Pico. This caused `type_string()` to return immediately with `_current_layout = None`, making every `STRING`/`STRINGLN` command silently do nothing. Fixed by adding `.json` to the file filter. All other commands (modifier combos, action keys) worked because they use hardcoded keycode lookups, not the layout module.
+
+**This session (README update):** README was rewritten with "What Works", "Planned / Not Yet Implemented", and "Quick Start (Pico)" sections. Usability assessment: ~95% of DuckyScript 1, ~60% of DuckyScript 3 covered. REPEAT is parsed but not yet interpreted (part of M16). The project is ready for Milestone 16 (DEFINE Preprocessor + REPEAT).
 
 ---
 

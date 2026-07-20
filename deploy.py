@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deploy kducky files to a CIRCUITPY drive for Raspberry Pi Pico 2 W.
 
-Auto-discovers all .py files under src/ — no manual manifest needed.
+Auto-discovers all .py and .json files under src/ — no manual manifest needed.
 
 Usage:
     python deploy.py <CIRCUITPY_PATH>
@@ -37,7 +37,7 @@ def _discover_files(repo_root: str) -> list[tuple[str, str]]:
         dirnames[:] = [d for d in dirnames if d != "__pycache__"]
 
         for fname in filenames:
-            if not fname.endswith(".py") or fname.endswith(".pyc"):
+            if not (fname.endswith(".py") or fname.endswith(".json")) or fname.endswith(".pyc"):
                 continue
 
             full = os.path.join(dirpath, fname)
