@@ -21,7 +21,7 @@ REM   8. RESET
 REM   9. Layout switching (DUCKY_LANG)
 REM  10. DELAY / DEFAULTDELAY / DEFAULTCHARDELAY
 REM  11. REPEAT
-REM  12. Now-working features (LED_G, HIDE/RESTORE, etc.)
+REM  12. LED color cycle
 REM
 REM Everything runs to completion and types "all_done" at the end.
 REM ═══════════════════════════════════════════════════════════════
@@ -142,11 +142,17 @@ REM ── SECTION 11: REPEAT ────────────────�
 STRINGLN repeat_me
 REPEAT 2
 
-REM ── SECTION 12: Now-working features ──────────────────────
-REM These used to crash — now all work.
+REM ── SECTION 12: LED color cycle ───────────────────────────────
+REM Cycle through all colors, 1.5 seconds each.
 
 LED_G
+DELAY 1500
+LED_R
+DELAY 1500
+LED_B
+DELAY 1500
 LED_OFF
+DELAY 1500
 HIDE_PAYLOAD
 RESTORE_PAYLOAD
 STRINGLN all_done
