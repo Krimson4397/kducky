@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M16 — DEFINE Preprocessor.  
+**Current status:** M17 — Error Reporting & Recovery.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -156,11 +156,11 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.2.0 (alpha)                    |
-| Completed Milestone   | M16 — DEFINE Preprocessor        |
+| Completed Milestone   | M17 — Error Reporting & Recovery |
 | Current Branch        | main                             |
-| Last Commit           | 702bb5d                          |
+| Last Commit           | c5ba3ba                          |
 | Repository Status     | Clean working tree                 |
-| Next Milestone        | M16 — DEFINE Preprocessor        |
+| Next Milestone        | M18 — Error Recovery             |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
@@ -193,23 +193,19 @@ This section **must** be updated at the completion of every milestone. It descri
 - `DEPLOYMENT.md` — Deployment documentation
 - `src/ducky/preprocessor.py` — `Preprocessor` class (`preprocess(source: str) -> str`) for compile-time DEFINE constant substitution at the text level, before lexing. Strips DEFINE lines (preserves line numbering with blanks), substitutes `#NAME` references outside `"..."` quoted strings, raises `PreprocessorError` on undefined references. CircuitPython-compatible (uses `isalpha()/isdigit()` instead of `isalnum()`).
 - `tests/test_preprocessor.py` — 25 tests covering: basic substitution (integer, multi-word, string body), multiple refs per line, empty value, DEFINE line removal, case-insensitive keyword, quoted string protection (including `\"` escapes), error conditions (undefined constant, missing hash, hash without name, keyword only), edge cases (bare `#`, partial name match, forward reference, state clearing, blank/comment preservation, no-op input).
+- `src/ducky/errors.py` — Unified `DuckyError` hierarchy (`DuckyError` → `LexerError`, `ParseError`, `InterpreterError`, `PreprocessorError`). Standard error format: `[ERROR] line N, col M: message`. Supports optional `source_snippet` and `cause`. CircuitPython-compatible (no imports beyond stdlib).
+- `tests/test_errors.py` — 22 tests covering: hierarchy (5), formatting (5), attributes (4), source snippet/cause (3), isinstance (2), reimports (4), integration through actual error paths (6).
 
 ### Files Modified
 
-- `src/ducky/tokens.py` — Removed `DEFINE = auto()` from `TokenType` enum. DEFINE is no longer a token type — it's preprocessor-only.
-- `src/ducky/lexer.py` — Removed `"DEFINE": TokenType.DEFINE` from `_KEYWORDS` dict. Lexer no longer produces DEFINE tokens.
-- `src/ducky/ast/nodes.py` — Removed `DefineStmt` dataclass entirely. Dead code that could reach the interpreter.
-- `src/ducky/ast/__init__.py` — Removed `DefineStmt` from imports and `__all__`.
-- `src/ducky/parser.py` — Removed `_parse_define_stmt` method, DEFINE dispatch branch, and `DefineStmt` import. Parser no longer knows about DEFINE.
-- `src/platform/pico/main.py` — Added `Preprocessor` import and call before lexing. This was the root cause of the hardware regression: the Pico runner bypassed the preprocessor.
-- `tests/test_parser.py` — Removed `DefineStmt` import and 3 test methods. Updated `test_defines_only` to run through Preprocessor → Lexer → Parser.
-- `tests/test_lexer.py` — Removed `test_define_preprocessor` (DEFINE is no longer a lexer keyword).
-- `tests/test_ast.py` — Removed `DefineStmt` import and test.
-- `tests/test_tokens.py` — Removed `test_preprocessor_keyword_present` (`TokenType.DEFINE` no longer exists).
+- `src/ducky/lexer.py` — Removed local `LexerError` class, imports `LexerError` from `ducky.errors`. Error format changed from `"Line N, col M: message"` to `"[ERROR] line N, col M: message"`.
+- `src/ducky/parser.py` — Removed local `ParseError` class, imports `ParseError` from `ducky.errors`. Same format change.
+- `src/ducky/interpreter.py` — Removed local `InterpreterError` class, imports `InterpreterError` from `ducky.errors`. Format changed from bare message to `"[ERROR] message"`.
+- `src/ducky/preprocessor.py` — Removed local `PreprocessorError` class, imports `PreprocessorError` from `ducky.errors`. Format preserved (`[ERROR] line N: message`).
 
 ### Tests Executed
 
-- `pytest tests/ -x -q` — 587 passed, 6 skipped (6 tests removed: DefineStmt dead code removed from lexer/parser/AST)
+- `pytest tests/ -x -q` — 615 passed, 6 skipped (22 new error-hierarchy tests)
 - `ruff check src/ tests/` — All checks passed
 
 ### Acceptance Criteria Completed
@@ -257,10 +253,20 @@ This section **must** be updated at the completion of every milestone. It descri
 - [x] Parser no longer has `_parse_define_stmt` — no AST path for DEFINE exists
 - [x] All existing parser/lexer tests updated to remove DEFINE references
 - [x] All 587 tests pass, ruff clean
+- [x] `src/ducky/errors.py` created with `DuckyError` base class
+- [x] All four error types (`LexerError`, `ParseError`, `InterpreterError`, `PreprocessorError`) inherit from `DuckyError`
+- [x] Standard format `[ERROR] line N, col M: message` for `LexerError` and `ParseError`
+- [x] Standard format `[ERROR] line N: message` for `PreprocessorError`
+- [x] Standard format `[ERROR] message` for `InterpreterError` (no line/col from AST)
+- [x] Backward compatibility: `from ducky.lexer import LexerError` (etc.) still works
+- [x] `InterpreterError` retained (not renamed to `RuntimeError` — Python built-in conflict)
+- [x] `source_snippet` and `cause` stored as attributes, not included in `str()`
+- [x] All 22 error-hierarchy tests pass
+- [x] All 615 tests pass, ruff clean
 
 ### Remaining Milestones
 
-Milestones 17–20 from the implementation roadmap.
+Milestones 18–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -288,23 +294,28 @@ Milestones 17–20 from the implementation roadmap.
 
 ### Notes for the Next Session
 
-Milestone 16 is complete. A hardware regression found that `main.py` (the Pico runner) bypassed the preprocessor, causing `DefineStmt` AST nodes to reach the interpreter. Architectural fix:
+Milestone 17 is complete. The error hierarchy is now unified under `DuckyError`:
 
-- `DefineStmt` is **removed** from the codebase entirely. DEFINE is exclusively a **preprocessor-only** construct. The preprocessor strips DEFINE lines and substitutes `#NAME` references at the text level, before lexing.
-- The lexer no longer produces `DEFINE` tokens — `TokenType.DEFINE` is removed.
-- The parser no longer has `_parse_define_stmt` — no AST path for DEFINE exists.
-- The Pico runner `main.py` now calls `Preprocessor().preprocess()` before lexing, matching the test helper pipeline exactly.
-- Desktop tests passed but Pico exposed the bug because the test helper `_execute()` included the preprocessor, while `main.py` did not. The pipelines are now identical.
+**Architecture:**
+```
+DuckyError(Exception)
+├── LexerError       — line + column always present
+├── ParseError       — line + column usually present (defaults to 0/0)
+├── InterpreterError — NO line/col (AST nodes don't carry positions)
+└── PreprocessorError — line always present
+```
 
-Key design decisions:
-- DEFINE is a **text-level preprocessor**, not a runtime construct. It operates on raw source text before the lexer sees it.
-- `#NAME` is substituted EVERYWHERE outside `"..."` quoted strings — this includes STRING/STRINGLN body text, DELAY arguments, etc.
-- DEFINE lines are replaced with blank lines (not removed) to preserve source line numbering for error reporting.
-- `HashIdentifierExpr` remains in the AST for potential future use, but is never reached in production since the preprocessor catches `#NAME` references first.
-- The `_execute` test helper includes the preprocessor step, so all integration tests run through the full pipeline.
-- 587 tests pass, 6 skipped (Pico hardware-dependent).
+**Key decisions:**
+- `InterpreterError` was **retained** (not renamed to `RuntimeError`) because Python already has a built-in `RuntimeError`, and the Engineering Spec does not require the rename.
+- AST nodes still lack source positions — adding them would be a separate milestone. Interpreter errors display as `[ERROR] message` without line/col.
+- Error format changed from `"Line N, col M: message"` to `"[ERROR] line N, col M: message"` — all existing regex-based test matches (`match=`) continue working.
+- The `source_snippet` and `cause` parameters are available on `DuckyError` but not included in `str()` output.
 
-The project is ready for Milestone 17 (Error Reporting & Recovery).
+**Files created:** `src/ducky/errors.py`, `tests/test_errors.py`
+**Files modified:** `lexer.py`, `parser.py`, `interpreter.py`, `preprocessor.py`
+**Test count:** 615 passed, 6 skipped (22 new error tests)
+
+The project is ready for Milestone 18 (Error Recovery).
 
 ---
 
@@ -318,7 +329,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 17 — Error Reporting & Recovery.
+5. Resume from Milestone 18 — Error Recovery.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
