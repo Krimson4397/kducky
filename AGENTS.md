@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M15 — Keyboard Layout Support complete.  
+**Current status:** M15/16 — HOLD/RELEASE modifiers + INJECT_MOD spec fix + DefineStmt prep.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -156,9 +156,9 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.2.0 (alpha)                    |
-| Completed Milestone   | M15 — Keyboard Layout Support    |
+| Completed Milestone   | M15/16 — HOLD/RELEASE modifiers + INJECT_MOD spec fix |
 | Current Branch        | main                             |
-| Last Commit           | 1854f7d                          |
+| Last Commit           | 9ef1832                          |
 | Repository Status     | Clean working tree                 |
 | Next Milestone        | M16 — DEFINE Preprocessor        |
 | Blocking Issues       | None                             |
@@ -194,38 +194,18 @@ This section **must** be updated at the completion of every milestone. It descri
 
 ### Files Modified
 
-- `src/ducky/__init__.py` — Added diagnostic print
-- `src/ducky/tokens.py` — compat imports, @enum decorators, Token class rewritten with __slots__
-- `src/ducky/ast/__init__.py` — Added diagnostic print, IdentifierStmt export
-- `src/ducky/ast/nodes.py` — @enum decorators, __slots__ on 32 classes, __defaults__ on 3, IdentifierStmt node, ComboStmt.key type widened
-- `src/ducky/lexer.py` — isalnum→isalpha/isdigit, diagnostic print
-- `src/ducky/parser.py` — IdentifierStmt support, diagnostic print
-- `src/ducky/interpreter.py` — ExtensionStmt support, IdentifierStmt visitor, visit_DuckyLangStmt, diagnostic print
-- `src/ducky/platform/__init__.py` — Added set_layout/get_layout to PlatformInterface protocol
-- `src/ducky/platform/desktop.py` — Added set_layout/get_layout implementations, _current_layout field
-- `src/ducky/utils/__init__.py` — compat imports
-- `src/ducky/utils/visitor.py` — compat imports
-- `src/platform/pico/backends.py` — Rewrote type_string to use Layout class, added set_layout/get_layout, _default_char_delay field
-- `src/platform/pico/main.py` — traceback fix, per-phase error handling
-- `src/ducky/layouts/__init__.py` — CircuitPython compat: removed os.path usage, FileNotFoundError→OSError
-- `tests/test_tokens.py` — iteration changes
-- `tests/test_ast.py` — iteration changes
-- `tests/test_pico_platform.py` — iteration changes
-- `tests/test_parser.py` — IdentifierStmt test updates
-- `AGENTS.md` — Session handoff updated
-- `plans/DuckyScript3_Implementation_Roadmap.md` — (if modified)
-- `README.md` — Rewrote with usage, compatibility, quick-start sections, real links
-- `deploy.py` — Fixed to also copy `.json` layout files (was `.py`-only, broke STRING on Pico)
+- `plans/DuckyScript3_Engineering_Spec.md` — HOLD/RELEASE grammar relaxed to accept `ModifierKey`; §5.3 updated with official Hak5 holding-keys example showing INJECT_MOD required before HOLD but NOT before RELEASE
+- `src/ducky/ast/nodes.py` — `HoldStmt.key` and `ReleaseStmt.key` types widened from `ActionKey` to `object` (to also accept `ModifierKey`)
+- `src/ducky/parser.py` — HOLD now requires `INJECT_MOD` preceding modifier keys; RELEASE accepts modifiers without INJECT_MOD; `_inject_mod_pending` flag tracks INJECT_MOD state
+- `src/platform/pico/backends.py` — `_hid_keycode_for` now handles `ModifierKey` instances (not just `ActionKey` and `str`)
+- `tests/test_parser.py` — 7 new tests for HOLD/RELEASE with modifier keys (INJECT_MOD requirement, full sequences, multiple modifiers)
+- `tests/test_interpreter_keyboard.py` — `test_hold_release_modifier_key` verifies interpreter dispatches hold_key/release_key with `ModifierKey.CTRL`
+- `tests/test_integration.py` — `test_hold_release_modifier` full end-to-end test with SHIFT modifier
 
 ### Tests Executed
 
-- `pytest tests/test_layouts.py -v` — 9 passed
-- `pytest tests/ -x -q` — 558 passed, 6 skipped
-- `pytest tests/ -x -q` — 558 passed, 6 skipped (M15 fixup)
+- `pytest tests/ -x -q` — 565 passed, 6 skipped
 - `ruff check src/ tests/` — All checks passed
-- `git pull origin main` — Synced README.md real links from GitHub
-- `pytest` — 558 passed, 6 skipped (verified no regressions)
-- `python deploy.py --dry-run D:\` — Verifies 36 files discovered (was 19), including all 16 `.json` layouts
 
 ### Acceptance Criteria Completed
 
@@ -246,6 +226,14 @@ This section **must** be updated at the completion of every milestone. It descri
 - [x] `visit_DuckyLangStmt` in interpreter calls `platform.set_layout()`
 - [x] 9 layout tests pass (layout loading, inheritance, case insensitivity, platform, interpreter)
 - [x] All 558 tests pass, ruff clean
+- [x] HOLD/RELEASE accept `ModifierKey` (key type widened from `ActionKey` to `object`)
+- [x] INJECT_MOD required before HOLD of modifier key, NOT required before RELEASE (per official Hak5 docs)
+- [x] Engineering Spec §5.3 updated with official holding-keys example
+- [x] `_inject_mod_pending` flag in parser tracks INJECT_MOD state across statements
+- [x] `PicoPlatform._hid_keycode_for` handles `ModifierKey` instances
+- [x] 7 new parser tests cover all HOLD/RELEASE modifier scenarios
+- [x] Interpreter integration test verifies end-to-end SHIFT modifier sequence
+- [x] All 565 tests pass, ruff clean
 
 ### Remaining Milestones
 
@@ -277,11 +265,9 @@ Milestones 15–20 from the implementation roadmap.
 
 ### Notes for the Next Session
 
-Milestone 15 is complete. All 16 keyboard layout JSON files exist under `src/ducky/layouts/`, the layout loader module supports caching and US-fallback inheritance, and runtime switching via `DUCKY_LANG` is implemented in the interpreter and both platform backends. All 9 layout tests pass, and the full suite reports 558 passed with 6 skipped.
+Milestone 15/16 is complete. HOLD/RELEASE now accept modifier keys (key type widened to `object`). INJECT_MOD is required before HOLD of a modifier key but NOT before RELEASE, matching official Hak5 documentation. The Engineering Spec §5.3 has been corrected with the official holding-keys example. All 565 tests pass with 6 skipped, and ruff reports clean.
 
-**Known bug fix:** `deploy.py` was only copying `.py` files, so 16 keyboard layout `.json` files were never deployed to the Pico. This caused `type_string()` to return immediately with `_current_layout = None`, making every `STRING`/`STRINGLN` command silently do nothing. Fixed by adding `.json` to the file filter. All other commands (modifier combos, action keys) worked because they use hardcoded keycode lookups, not the layout module.
-
-**This session (README update):** README was rewritten with "What Works", "Planned / Not Yet Implemented", and "Quick Start (Pico)" sections. Usability assessment: ~95% of DuckyScript 1, ~60% of DuckyScript 3 covered. REPEAT is parsed but not yet interpreted (part of M16). The project is ready for Milestone 16 (DEFINE Preprocessor + REPEAT).
+The `DefineStmt` AST node exists but no preprocessor pass has been implemented yet — that is the core work of Milestone 16. The project is ready for Milestone 16 (DEFINE Preprocessor).
 
 ---
 

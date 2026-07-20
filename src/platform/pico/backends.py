@@ -261,6 +261,8 @@ class PicoPlatform:
             return key
         if isinstance(key, ActionKey):
             return _ACTION_KEY_MAP[key]
+        if isinstance(key, ModifierKey):
+            return _MODIFIER_KEY_MAP[key]
         if isinstance(key, str):
             # Single character key in modifier combo (e.g. GUI r → "R")
             if len(key) == 1:

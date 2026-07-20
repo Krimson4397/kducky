@@ -234,8 +234,8 @@ StringLnStmt          = 'STRINGLN' , [ StringContent ] , Newline
 KeyStmt               = ActionKey , Newline
 ModifierComboStmt     = ModifierKey , { (' ' | '-') , (ModifierKey | ActionKey) } , Newline
 InjectModStmt         = 'INJECT_MOD' , Newline
-HoldStmt              = 'HOLD' , ActionKey , Newline
-ReleaseStmt           = 'RELEASE' , ActionKey , Newline
+HoldStmt              = 'HOLD' , ( ActionKey | ModifierKey ) , Newline
+ReleaseStmt           = 'RELEASE' , ( ActionKey | ModifierKey ) , Newline
 RepeatStmt            = 'REPEAT' , IntegerLiteral , Newline
 ResetStmt             = 'RESET' , Newline
 RestartPayloadStmt    = 'RESTART_PAYLOAD' , Newline
@@ -420,7 +420,17 @@ Truthiness: `0` and `""` are falsy. All other values are truthy.
 - **[Official]** Modifier combos (e.g., `CTRL SHIFT ESC`): press all modifiers in order, press action key, then release all in reverse order.
 - **[Official]** `HOLD <key>`: press and hold. `RELEASE <key>`: release a held key.
 - **[Official]** `INJECT_MOD` before a modifier signals a standalone modifier press+release.
+- **[Official]** `HOLD <modifier>` requires `INJECT_MOD` on the preceding line.
+- **[Official]** `RELEASE <modifier>` — no `INJECT_MOD` required (the modifier context was already established by the preceding `HOLD` statement). See official example below.
 - **[Official]** `RESET`: release all keys immediately.
+- **[Official]** Official Hak5 holding-keys example (from docs.hak5.org):
+  ```
+  INJECT_MOD
+  HOLD WINDOWS
+  DELAY 4000
+  RELEASE WINDOWS
+  ```
+  `INJECT_MOD` is required before `HOLD <modifier>` but NOT before `RELEASE <modifier>`.
 - **[Critical]** The implementation must ensure all keys are released on any error path. Modifier keys must never be left pressed.
 
 ### 5.4 Delay Semantics

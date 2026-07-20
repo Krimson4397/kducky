@@ -159,7 +159,7 @@ class HoldStmt(Stmt):
 
     __slots__ = ("key",)
 
-    key: ActionKey
+    key: object
 
 
 @dataclass(frozen=True)
@@ -168,7 +168,7 @@ class ReleaseStmt(Stmt):
 
     __slots__ = ("key",)
 
-    key: ActionKey
+    key: object
 
 
 # ── Delays ──────────────────────────────────────────────────────────

@@ -165,6 +165,21 @@ class TestHoldRelease:
             ("release_key", ActionKey.ENTER),
         ]
 
+    def test_hold_release_modifier_key(self) -> None:
+        """INJECT_MOD + HOLD CTRL, then INJECT_MOD + RELEASE CTRL."""
+        platform = DesktopPlatform()
+        interpreter = Interpreter(platform)
+        script = Script((
+            InjectModStmt(),
+            HoldStmt(ModifierKey.CTRL),
+            StringStmt("hello"),
+            InjectModStmt(),
+            ReleaseStmt(ModifierKey.CTRL),
+        ))
+        interpreter.interpret(script)
+        assert ("hold_key", ModifierKey.CTRL) in platform.calls
+        assert ("release_key", ModifierKey.CTRL) in platform.calls
+
 
 class TestInjectMod:
     """INJECT_MOD — release all held keys."""

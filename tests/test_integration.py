@@ -197,3 +197,11 @@ class TestIntegration:
         # Each char typed individually: "a", delay, "b", delay
         assert ("type_string", "a") in platform.calls
         assert ("type_string", "b") in platform.calls
+
+    def test_hold_release_modifier(self) -> None:
+        """INJECT_MOD + HOLD/RELEASE with modifier key."""
+        platform = _execute("INJECT_MOD\nHOLD SHIFT\nSTRING a\nINJECT_MOD\nRELEASE SHIFT\n")
+        hold_calls = [c for c in platform.calls if c[0] == "hold_key"]
+        release_calls = [c for c in platform.calls if c[0] == "release_key"]
+        assert hold_calls == [("hold_key", ModifierKey.SHIFT)]
+        assert release_calls == [("release_key", ModifierKey.SHIFT)]

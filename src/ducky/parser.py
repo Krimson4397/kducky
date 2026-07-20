@@ -244,6 +244,7 @@ class DuckyParser:
         self._in_function = False
         self._loop_depth = 0
         self._previous_stmt_was_block_end = False
+        self._inject_mod_pending: bool = False
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -600,6 +601,7 @@ class DuckyParser:
 
     def _parse_inject_mod_stmt(self) -> InjectModStmt:
         self._consume(TokenType.INJECT_MOD, "Expected INJECT_MOD")
+        self._inject_mod_pending = True
         self._consume_newline()
         self._previous_stmt_was_block_end = False
         return InjectModStmt()
@@ -607,14 +609,23 @@ class DuckyParser:
     def _parse_hold_stmt(self) -> HoldStmt:
         self._consume(TokenType.HOLD, "Expected HOLD")
         key_token = self._advance()
-        # Per spec §2 grammar: HOLD only accepts action keys (not modifiers).
-        if key_token.type not in _ACTION_KEY_TOKEN_TYPES:
+        if key_token.type in _ACTION_KEY_TOKEN_TYPES:
+            key: object = _TOKEN_TO_ACTION_KEY[key_token.type]
+        elif key_token.type in _MODIFIER_TOKEN_TYPES:
+            if not self._inject_mod_pending:
+                raise ParseError(
+                    "INJECT_MOD required before HOLD with modifier key",
+                    key_token.line,
+                    key_token.column,
+                )
+            self._inject_mod_pending = False
+            key = _TOKEN_TO_MODIFIER[key_token.type]
+        else:
             raise ParseError(
-                f"Expected action key after HOLD. Got {key_token.type.name}",
+                f"Expected action key or modifier key after HOLD. Got {key_token.type.name}",
                 key_token.line,
                 key_token.column,
             )
-        key = _TOKEN_TO_ACTION_KEY[key_token.type]
         self._consume_newline()
         self._previous_stmt_was_block_end = False
         return HoldStmt(key=key)
@@ -622,14 +633,18 @@ class DuckyParser:
     def _parse_release_stmt(self) -> ReleaseStmt:
         self._consume(TokenType.RELEASE, "Expected RELEASE")
         key_token = self._advance()
-        # Per spec §2 grammar: RELEASE only accepts action keys (not modifiers).
-        if key_token.type not in _ACTION_KEY_TOKEN_TYPES:
+        if key_token.type in _ACTION_KEY_TOKEN_TYPES:
+            key: object = _TOKEN_TO_ACTION_KEY[key_token.type]
+        elif key_token.type in _MODIFIER_TOKEN_TYPES:
+            # RELEASE does NOT require INJECT_MOD (official Hak5 behavior)
+            self._inject_mod_pending = False  # consume stale flag if any
+            key = _TOKEN_TO_MODIFIER[key_token.type]
+        else:
             raise ParseError(
-                f"Expected action key after RELEASE. Got {key_token.type.name}",
+                f"Expected action key or modifier key after RELEASE. Got {key_token.type.name}",
                 key_token.line,
                 key_token.column,
             )
-        key = _TOKEN_TO_ACTION_KEY[key_token.type]
         self._consume_newline()
         self._previous_stmt_was_block_end = False
         return ReleaseStmt(key=key)

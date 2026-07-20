@@ -1055,15 +1055,60 @@ class TestErrorEdgeCases:
         script = parse("DELAY 100\nREPEAT 3\nRESET\n")
         assert len(script.statements) == 3
 
-    def test_hold_modifier_key_rejected(self) -> None:
-        """HOLD CTRL should fail — HOLD only accepts action keys per spec §2."""
-        with pytest.raises(ParseError):
-            parse("HOLD CTRL\n")
+    def test_hold_with_modifier_key_requires_inject_mod(self) -> None:
+        """HOLD SHIFT without INJECT_MOD should fail."""
+        with pytest.raises(ParseError, match="INJECT_MOD required"):
+            parse("HOLD SHIFT\n")
 
-    def test_release_modifier_key_rejected(self) -> None:
-        """RELEASE CTRL should fail — RELEASE only accepts action keys per spec §2."""
-        with pytest.raises(ParseError):
-            parse("RELEASE CTRL\n")
+    def test_release_with_modifier_key_without_inject_mod(self) -> None:
+        """RELEASE SHIFT without INJECT_MOD should succeed (official Hak5 behavior)."""
+        script = parse("RELEASE SHIFT\n")
+        assert len(script.statements) == 1
+        assert isinstance(script.statements[0], ReleaseStmt)
+        assert script.statements[0].key == ModifierKey.SHIFT
+
+    def test_hold_with_modifier_key_after_inject_mod(self) -> None:
+        """INJECT_MOD then HOLD SHIFT should succeed."""
+        script = parse("INJECT_MOD\nHOLD SHIFT\n")
+        assert len(script.statements) == 2
+        assert isinstance(script.statements[0], InjectModStmt)
+        assert isinstance(script.statements[1], HoldStmt)
+        assert script.statements[1].key == ModifierKey.SHIFT
+
+    def test_release_with_modifier_key_after_inject_mod(self) -> None:
+        """INJECT_MOD then RELEASE SHIFT should succeed."""
+        script = parse("INJECT_MOD\nRELEASE SHIFT\n")
+        assert len(script.statements) == 2
+        assert isinstance(script.statements[0], InjectModStmt)
+        assert isinstance(script.statements[1], ReleaseStmt)
+        assert script.statements[1].key == ModifierKey.SHIFT
+
+    def test_full_hold_release_sequence_no_inject_mod_before_release(self) -> None:
+        """Full sequence: INJECT_MOD / HOLD SHIFT / RELEASE SHIFT (no INJECT_MOD before RELEASE)."""
+        script = parse("INJECT_MOD\nHOLD SHIFT\nRELEASE SHIFT\n")
+        assert len(script.statements) == 3
+        assert isinstance(script.statements[0], InjectModStmt)
+        assert isinstance(script.statements[1], HoldStmt)
+        assert script.statements[1].key == ModifierKey.SHIFT
+        assert isinstance(script.statements[2], ReleaseStmt)
+        assert script.statements[2].key == ModifierKey.SHIFT
+
+    def test_full_hold_release_sequence_with_delay(self) -> None:
+        """Full sequence with delay: INJECT_MOD / HOLD CONTROL / DELAY 100 / RELEASE CONTROL."""
+        script = parse("INJECT_MOD\nHOLD CONTROL\nDELAY 100\nRELEASE CONTROL\n")
+        assert len(script.statements) == 4
+        assert isinstance(script.statements[0], InjectModStmt)
+        assert isinstance(script.statements[1], HoldStmt)
+        assert script.statements[1].key == ModifierKey.CONTROL
+        assert isinstance(script.statements[2], DelayStmt)
+        assert isinstance(script.statements[3], ReleaseStmt)
+        assert script.statements[3].key == ModifierKey.CONTROL
+
+    def test_hold_multiple_modifiers(self) -> None:
+        """HOLD with various modifier keys after INJECT_MOD."""
+        for mod_name in ("CONTROL", "SHIFT", "ALT", "GUI", "WINDOWS", "COMMAND", "OPTION"):
+            script = parse(f"INJECT_MOD\nHOLD {mod_name}\n")
+            assert isinstance(script.statements[1], HoldStmt)
 
 
 # ── Additional full-program tests ─────────────────────────────────────────
