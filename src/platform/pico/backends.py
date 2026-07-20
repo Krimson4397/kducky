@@ -479,7 +479,7 @@ class PicoPlatform:
         try:
             storage.remount("/", readonly=False)
             _os.rename(_PAYLOAD_PATH, hidden_path)
-        except OSError:
+        except (OSError, RuntimeError):
             pass  # ponytail: file may already be hidden
 
     def restore_payload(self) -> None:
@@ -488,7 +488,7 @@ class PicoPlatform:
         try:
             storage.remount("/", readonly=False)
             _os.rename(hidden_path, _PAYLOAD_PATH)
-        except OSError:
+        except (OSError, RuntimeError):
             pass  # ponytail: hidden file may not exist
 
     # ── Random ───────────────────────────────────────────────────────

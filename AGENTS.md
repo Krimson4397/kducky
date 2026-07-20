@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M17 — Error Reporting & Recovery.  
+**Current status:** M18 — Complete Interpreter (all 13 AST visitors implemented).  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -156,56 +156,29 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 0.2.0 (alpha)                    |
-| Completed Milestone   | M17 — Error Reporting & Recovery |
+| Completed Milestone   | M18 — Complete Interpreter       |
 | Current Branch        | main                             |
-| Last Commit           | c5ba3ba                          |
+| Last Commit           | b508745                          |
 | Repository Status     | Clean working tree                 |
-| Next Milestone        | M18 — Error Recovery             |
+| Next Milestone        | M19 — Hardware Validation (Pico) |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
 ### Files Created
 
-- `src/platform/pico/backends.py` — `PicoPlatform` class implementing all 26 `PlatformInterface` methods for CircuitPython on Raspberry Pi Pico 2 W (RP2350). Guarded imports so the module is importable on desktop. Exhaustive `_ACTION_KEY_MAP` (all 69 `ActionKey` members) and `_MODIFIER_KEY_MAP` (all 8 `ModifierKey` members) to Adafruit HID keycodes.
-- `src/platform/pico/main.py` — Entry point runner for CircuitPython auto-run (`code.py`/`main.py`). Loads `/payload.dd`, runs through lexer → parser → interpreter pipeline, signals success/failure with onboard LED.
-- `src/platform/pico/boot.py` — USB configuration executed at CircuitPython power-on. Enables HID keyboard and optional mass storage disable (`/STORAGE_DISABLE` marker file).
-- `tests/test_pico_platform.py` — 17 contract tests verifying: all 26 protocol methods implemented, no extra public methods, signatures match, keycode maps exhaustive (skipped on desktop), signal behavior matches DesktopPlatform, helper enums importable.
-- `src/ducky/utils/compat.py` — CircuitPython compatibility shim (dataclass, enum, Protocol fallbacks)
-- `src/ducky/layouts/__init__.py` — Keyboard layout loader module with caching
-- `src/ducky/layouts/US.json` — US keyboard layout (95 printable ASCII characters)
-- `src/ducky/layouts/gb.json` — GB keyboard layout (diff from US)
-- `src/ducky/layouts/de.json` — DE keyboard layout (diff from US)
-- `src/ducky/layouts/fr.json` — FR keyboard layout (diff from US)
-- `src/ducky/layouts/es.json` — ES keyboard layout (diff from US)
-- `src/ducky/layouts/it.json` — IT keyboard layout (diff from US)
-- `src/ducky/layouts/jp.json` — JP keyboard layout (diff from US)
-- `src/ducky/layouts/dk.json` — DK keyboard layout (diff from US)
-- `src/ducky/layouts/no.json` — NO keyboard layout (diff from US)
-- `src/ducky/layouts/se.json` — SE keyboard layout (diff from US)
-- `src/ducky/layouts/fi.json` — FI keyboard layout (diff from US)
-- `src/ducky/layouts/pt.json` — PT keyboard layout (diff from US)
-- `src/ducky/layouts/br.json` — BR keyboard layout (diff from US)
-- `src/ducky/layouts/ru.json` — RU keyboard layout (diff from US)
-- `src/ducky/layouts/pl.json` — PL keyboard layout (diff from US)
-- `src/ducky/layouts/cz.json` — CZ keyboard layout (diff from US)
-- `tests/test_layouts.py` — 9 tests for layout loader, platform set_layout/get_layout, and interpreter DuckyLangStmt
-- `deploy.py` — Auto-discovery deployment script
-- `DEPLOYMENT.md` — Deployment documentation
-- `src/ducky/preprocessor.py` — `Preprocessor` class (`preprocess(source: str) -> str`) for compile-time DEFINE constant substitution at the text level, before lexing. Strips DEFINE lines (preserves line numbering with blanks), substitutes `#NAME` references outside `"..."` quoted strings, raises `PreprocessorError` on undefined references. CircuitPython-compatible (uses `isalpha()/isdigit()` instead of `isalnum()`).
-- `tests/test_preprocessor.py` — 25 tests covering: basic substitution (integer, multi-word, string body), multiple refs per line, empty value, DEFINE line removal, case-insensitive keyword, quoted string protection (including `\"` escapes), error conditions (undefined constant, missing hash, hash without name, keyword only), edge cases (bare `#`, partial name match, forward reference, state clearing, blank/comment preservation, no-op input).
-- `src/ducky/errors.py` — Unified `DuckyError` hierarchy (`DuckyError` → `LexerError`, `ParseError`, `InterpreterError`, `PreprocessorError`). Standard error format: `[ERROR] line N, col M: message`. Supports optional `source_snippet` and `cause`. CircuitPython-compatible (no imports beyond stdlib).
-- `tests/test_errors.py` — 22 tests covering: hierarchy (5), formatting (5), attributes (4), source snippet/cause (3), isinstance (2), reimports (4), integration through actual error paths (6).
+- `payloads/payload.dd` — Safe regression payload (v1.1, no system key combos). Exercises all interpreter features and runs to completion (no crashes). Replaces `safe_regression.dd`.
+- `payloads/regression_test.dd` — Original regression payload (v1.0, includes Windows UI key combos for manual testing with caution).
 
 ### Files Modified
 
-- `src/ducky/lexer.py` — Removed local `LexerError` class, imports `LexerError` from `ducky.errors`. Error format changed from `"Line N, col M: message"` to `"[ERROR] line N, col M: message"`.
-- `src/ducky/parser.py` — Removed local `ParseError` class, imports `ParseError` from `ducky.errors`. Same format change.
-- `src/ducky/interpreter.py` — Removed local `InterpreterError` class, imports `InterpreterError` from `ducky.errors`. Format changed from bare message to `"[ERROR] message"`.
-- `src/ducky/preprocessor.py` — Removed local `PreprocessorError` class, imports `PreprocessorError` from `ducky.errors`. Format preserved (`[ERROR] line N: message`).
+- `src/ducky/interpreter.py` — Added 13 visitor methods: `visit_LedStmt`, `visit_AttackModeStmt`, `visit_SaveAttackModeStmt`, `visit_RestoreAttackModeStmt`, `visit_SaveHostLockStateStmt`, `visit_RestoreHostLockStateStmt`, `visit_WaitForKeyStmt`, `visit_ButtonDefStmt`, `visit_WaitForButtonPressStmt`, `visit_DisableButtonStmt`, `visit_EnableButtonStmt`, `visit_HidePayloadStmt`, `visit_RestorePayloadStmt`. Added `_button_handlers` dict. Updated `visit_Script` two-phase registration to handle `ButtonDefStmt`.
+- `tests/test_interpreter_keyboard.py` — 18 new tests covering all 13 new visitors.
+- `payloads/payload.dd` — Removed "expected crash" section; now runs to completion with 356 tokens, 47 statements.
+- `deploy.py` — Added `payloads/payload.dd` to file discovery for CIRCUITPY deployment.
 
 ### Tests Executed
 
-- `pytest tests/ -x -q` — 615 passed, 6 skipped (22 new error-hierarchy tests)
+- `python -m pytest tests/ -x -q` — 633 passed, 6 skipped (18 new interpreter tests)
 - `ruff check src/ tests/` — All checks passed
 
 ### Acceptance Criteria Completed
@@ -263,10 +236,24 @@ This section **must** be updated at the completion of every milestone. It descri
 - [x] `source_snippet` and `cause` stored as attributes, not included in `str()`
 - [x] All 22 error-hierarchy tests pass
 - [x] All 615 tests pass, ruff clean
+- [x] All 13 missing interpreter visitor methods implemented in `interpreter.py`
+- [x] `visit_LedStmt` — calls `platform.set_led()` for all 4 LedState values (OFF/R/G/B)
+- [x] `visit_AttackModeStmt` — calls `platform.set_attack_mode(params)`
+- [x] `visit_SaveAttackModeStmt` / `visit_RestoreAttackModeStmt` — save/restore attack mode
+- [x] `visit_SaveHostLockStateStmt` / `visit_RestoreHostLockStateStmt` — save/restore lock state
+- [x] `visit_WaitForKeyStmt` — polls platform getter until target lock key state (ON/OFF/CHANGE)
+- [x] `visit_ButtonDefStmt` — registered in phase-1 like FunctionDef, skipped in phase-2
+- [x] `visit_EnableButtonStmt` / `visit_DisableButtonStmt` — calls platform enable/disable
+- [x] `visit_WaitForButtonPressStmt` — calls `platform.wait_for_button_press()`
+- [x] `visit_HidePayloadStmt` / `visit_RestorePayloadStmt` — calls platform hide/restore
+- [x] 18 tests covering all 13 visitors pass
+- [x] `payloads/payload.dd` updated — runs to completion, types "all_done" as last line
+- [x] `deploy.py` copies `payload.dd` to CIRCUITPY drive
+- [x] Full suite: 633 tests pass, ruff clean, working tree clean
 
 ### Remaining Milestones
 
-Milestones 18–20 from the implementation roadmap.
+Milestones 19–20 from the implementation roadmap.
 
 ### Known Issues
 
@@ -294,28 +281,35 @@ Milestones 18–20 from the implementation roadmap.
 
 ### Notes for the Next Session
 
-Milestone 17 is complete. The error hierarchy is now unified under `DuckyError`:
+Milestone 18 is complete. All 13 AST visitor methods that were missing are now implemented:
 
 **Architecture:**
-```
-DuckyError(Exception)
-├── LexerError       — line + column always present
-├── ParseError       — line + column usually present (defaults to 0/0)
-├── InterpreterError — NO line/col (AST nodes don't carry positions)
-└── PreprocessorError — line always present
-```
+- All 13 visitors dispatch through the same `visit()` → `visit_ClassName()` pattern
+- `ButtonDefStmt` uses two-phase registration (same as `FunctionDef`): registered in `visit_Script` phase-1, execution skipped in phase-2
+- `WaitForKeyStmt` uses a polling loop with 50ms delay via `platform.delay_ms()`
+- No new platform methods were needed — all already existed in `PlatformInterface`, `DesktopPlatform`, and `PicoPlatform`
 
-**Key decisions:**
-- `InterpreterError` was **retained** (not renamed to `RuntimeError`) because Python already has a built-in `RuntimeError`, and the Engineering Spec does not require the rename.
-- AST nodes still lack source positions — adding them would be a separate milestone. Interpreter errors display as `[ERROR] message` without line/col.
-- Error format changed from `"Line N, col M: message"` to `"[ERROR] line N, col M: message"` — all existing regex-based test matches (`match=`) continue working.
-- The `source_snippet` and `cause` parameters are available on `DuckyError` but not included in `str()` output.
+**Visitors implemented:**
+1. `visit_LedStmt` — LED control (OFF/R/G/B)
+2. `visit_AttackModeStmt` — USB attack mode configuration
+3. `visit_SaveAttackModeStmt` — save attack mode state
+4. `visit_RestoreAttackModeStmt` — restore attack mode state
+5. `visit_SaveHostLockStateStmt` — save lock key state
+6. `visit_RestoreHostLockStateStmt` — restore lock key state
+7. `visit_WaitForKeyStmt` — wait for lock key state (CAPS/NUM/SCROLL, ON/OFF/CHANGE)
+8. `visit_ButtonDefStmt` — register button handler
+9. `visit_EnableButtonStmt` — enable button handler
+10. `visit_DisableButtonStmt` — disable button handler
+11. `visit_WaitForButtonPressStmt` — wait for hardware button press
+12. `visit_HidePayloadStmt` — hide payload file
+13. `visit_RestorePayloadStmt` — restore hidden payload file
 
-**Files created:** `src/ducky/errors.py`, `tests/test_errors.py`
-**Files modified:** `lexer.py`, `parser.py`, `interpreter.py`, `preprocessor.py`
-**Test count:** 615 passed, 6 skipped (22 new error tests)
+**Test count:** 633 passed, 6 skipped (same hardware-dependent skips)
+**Commit:** `b508745`
 
-The project is ready for Milestone 18 (Error Recovery).
+The safe regression payload (`payloads/payload.dd`) now runs to completion — types all test output into Notepad, exercises LED/attack mode/etc., and types "all_done" at the end.
+
+Next milestone: M19 — Hardware Validation (Pico). Run the interpreter on actual Pico 2 W hardware and validate against test payloads.
 
 ---
 
@@ -329,7 +323,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 18 — Error Recovery.
+5. Resume from Milestone 19 — Hardware Validation (Pico).
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
