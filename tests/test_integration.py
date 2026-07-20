@@ -1,7 +1,7 @@
 """End-to-end integration tests — full DuckyScript payloads through the pipeline.
 
 Each test runs source text through the entire chain:
-    DuckyLexer → DuckyParser → Interpreter → DesktopPlatform
+    Preprocessor → DuckyLexer → DuckyParser → Interpreter → DesktopPlatform
 and asserts on the recorded platform call sequence or output.
 """
 
@@ -11,12 +11,14 @@ from ducky.interpreter import Interpreter, InterpreterError
 from ducky.lexer import DuckyLexer
 from ducky.parser import DuckyParser
 from ducky.platform.desktop import DesktopPlatform
+from ducky.preprocessor import Preprocessor
 from ducky.tokens import ActionKey, ModifierKey
 
 
 def _execute(source: str) -> DesktopPlatform:
-    """Tokenize, parse, interpret *source* and return the platform mock."""
-    tokens = DuckyLexer().tokenize(source)
+    """Preprocess, tokenize, parse, interpret *source* and return the platform mock."""
+    preprocessed = Preprocessor().preprocess(source)
+    tokens = DuckyLexer().tokenize(preprocessed)
     script = DuckyParser(tokens).parse()
     platform = DesktopPlatform()
     Interpreter(platform).interpret(script)
@@ -205,3 +207,25 @@ class TestIntegration:
         release_calls = [c for c in platform.calls if c[0] == "release_key"]
         assert hold_calls == [("hold_key", ModifierKey.SHIFT)]
         assert release_calls == [("release_key", ModifierKey.SHIFT)]
+
+    def test_define_substitution(self) -> None:
+        """DEFINE constants are substituted before lexing."""
+        platform = _execute(
+            "DEFINE #DELAY_VAL 250\n"
+            "DELAY #DELAY_VAL\n"
+        )
+        assert ("delay_ms", 250) in platform.calls
+
+    def test_define_multi_word_in_string(self) -> None:
+        """DEFINE multi-word value substituted in STRINGLN body."""
+        platform = _execute(
+            "DEFINE #MSG Hello World\n"
+            "STRINGLN #MSG\n"
+        )
+        assert platform.output == ["Hello World"]
+
+    def test_define_undefined_errors(self) -> None:
+        """Undefined #NAME in payload raises PreprocessorError."""
+        from ducky.preprocessor import PreprocessorError
+        with pytest.raises(PreprocessorError, match="Undefined constant '#X'"):
+            _execute("DELAY #X\n")
