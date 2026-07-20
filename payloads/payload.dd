@@ -21,7 +21,7 @@ REM   8. RESET
 REM   9. Layout switching (DUCKY_LANG)
 REM  10. DELAY / DEFAULTDELAY / DEFAULTCHARDELAY
 REM  11. REPEAT
-REM  12. LED color cycle
+REM  12. LED blink pattern
 REM
 REM Everything runs to completion and types "all_done" at the end.
 REM ═══════════════════════════════════════════════════════════════
@@ -142,17 +142,24 @@ REM ── SECTION 11: REPEAT ────────────────�
 STRINGLN repeat_me
 REPEAT 2
 
-REM ── SECTION 12: LED color cycle ───────────────────────────────
-REM Cycle through all colors, 1.5 seconds each.
+REM ── SECTION 12: LED blink pattern ────────────────────────────
 
 LED_G
-DELAY 1500
-LED_R
-DELAY 1500
-LED_B
+DELAY 1000
+LED_OFF
+DELAY 500
+LED_G
 DELAY 1500
 LED_OFF
-DELAY 1500
+DELAY 1000
+LED_G
+DELAY 200
+LED_OFF
+DELAY 200
+LED_G
+DELAY 200
+LED_OFF
+DELAY 200
 HIDE_PAYLOAD
 RESTORE_PAYLOAD
 STRINGLN all_done
