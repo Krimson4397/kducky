@@ -52,6 +52,9 @@ def _discover_files(repo_root: str) -> list[tuple[str, str]]:
             else:
                 files.append((os.path.join("src", rel), rel))
 
+    # Payload file (flattened — no subdirectory on Pico)
+    files.append((os.path.join("payloads", "payload.dd"), "payload.dd"))
+
     return files
 
 

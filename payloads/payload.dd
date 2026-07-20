@@ -1,0 +1,166 @@
+REM ═══════════════════════════════════════════════════════════════
+REM kducky Official Regression Payload
+REM Version: 1.1 — Safe Edition (No system key combos)
+REM
+REM BEFORE RUNNING: Open Notepad (or any text editor) and ensure
+REM the window is focused.  This payload ONLY types text into the
+REM active window.  No system-level key combos (CTRL, ALT, GUI) are
+REM used, so it is safe to run on any unlocked desktop.
+REM
+REM Execution order maximizes coverage before the first expected
+REM failure (LED_G at the very end).
+REM
+REM   1. Preprocessor
+REM   2. Variables
+REM   3. Expressions
+REM   4. Control flow (IF/ELSE/WHILE/BREAK/CONTINUE)
+REM   5. Functions (definition, call, return value)
+REM   6. Random + STRING output
+REM   7. HOLD/RELEASE (SHIFT + SPACE only)
+REM   8. RESET
+REM   9. Layout switching (DUCKY_LANG)
+REM  10. DELAY / DEFAULTDELAY / DEFAULTCHARDELAY
+REM  11. REPEAT
+REM  12. LED_G (expected crash — no visit_LedStmt)
+REM
+REM Everything before LED_G is testable by reading what appears
+REM on screen.
+REM ═══════════════════════════════════════════════════════════════
+
+REM ── SECTION 1: Preprocessor (text-level, before lexer) ────────
+
+DEFINE #DELAY_VAL 50
+DEFINE #STR Hello world
+DEFINE #TEXT safe_regression
+
+REM ── SECTION 2: Variables (interpreter state) ──────────────────
+
+VAR $counter = 0
+VAR $max = 5
+VAR $result = 0
+$counter = 1
+VAR $t = TRUE
+VAR $f = FALSE
+VAR $name = TRUE
+
+REM ── SECTION 3: Expressions (arithmetic, bitwise, shift) ───────
+
+VAR $calc = (1 + 2) * 3
+$calc = $calc ^ 2
+VAR $flags = $calc & 0xFF
+VAR $shifted = 1 << 3
+VAR $combined = $flags | $shifted
+
+REM ── SECTION 4: Control Flow (IF/ELSE/WHILE/BREAK/CONTINUE) ────
+
+IF ($counter == 1) THEN
+  STRINGLN counter_is_one
+ELSE IF ($counter == 2) THEN
+  STRINGLN counter_is_two
+ELSE
+  STRINGLN other
+END_IF
+
+WHILE ($max > 0)
+  $max = $max - 1
+  IF ($max == 3) THEN
+    CONTINUE
+  END_IF
+  IF ($max == 0) THEN
+    BREAK
+  END_IF
+  STRINGLN loop_body
+END_WHILE
+
+REM ── SECTION 5: Functions (definition, call, return) ───────────
+
+FUNCTION greet()
+  STRINGLN hello_from_fn
+END_FUNCTION
+greet()
+
+FUNCTION add()
+  VAR $local = 0
+  $local = 100
+  RETURN 42
+END_FUNCTION
+VAR $fn_result = add()
+
+REM ── SECTION 6: Random + STRING output (platform typing) ──────
+
+RANDOM_CHAR
+RANDOM_LETTER
+RANDOM_NUMBER
+RANDOM_SPECIAL
+RANDOM_LOWERCASE_LETTER
+RANDOM_UPPERCASE_LETTER
+
+REM DEFINE substitution tested here
+DELAY #DELAY_VAL
+STRINGLN #STR
+STRINGLN prefix_#TEXT
+
+REM ── SECTION 7: HOLD/RELEASE (SHIFT for caps, SPACE) ──────────
+REM Only SHIFT and SPACE — no CTRL, ALT, or GUI modifiers.
+
+INJECT_MOD
+HOLD SHIFT
+STRING a
+INJECT_MOD
+RELEASE SHIFT
+
+HOLD SPACE
+DELAY 50
+RELEASE SPACE
+
+REM SHIFT ENTER types a new line (safe in any text editor)
+SHIFT ENTER
+
+REM INJECT_MOD standalone exercises parser path
+INJECT_MOD
+
+REM ── SECTION 8: RESET ─────────────────────────────────────────
+
+RESET
+STRINGLN reset_complete
+
+REM ── SECTION 9: Layout switching (platform state) ─────────────
+
+DUCKY_LANG DE
+STRINGLN ae
+DUCKY_LANG US
+STRINGLN back_to_us
+
+REM ── SECTION 10: DELAY / DEFAULTDELAY / DEFAULTCHARDELAY ─────
+
+DELAY 50
+DEFAULTDELAY 30
+DEFAULTCHARDELAY 5
+STRINGLN delay_test_done
+
+REM ── SECTION 11: REPEAT ──────────────────────────────────────
+
+STRINGLN repeat_me
+REPEAT 2
+
+REM ── SECTION 12: LED_G (expected crash) ──────────────────────
+REM ⌄⌄⌄⌄ EXECUTION STOPS HERE (no visit_LedStmt) ⌄⌄⌄⌄
+LED_G
+
+REM ── Unreachable (kept for reference): ─────────────────────────
+REM ATTACKMODE HID STORAGE
+REM SAVE_ATTACKMODE
+REM RESTORE_ATTACKMODE
+REM SAVE_HOST_KEYBOARD_LOCK_STATE
+REM WAIT_FOR_CAPS_OFF
+REM WAIT_FOR_NUM_ON
+REM WAIT_FOR_SCROLL_CHANGE
+REM RESTORE_HOST_KEYBOARD_LOCK_STATE
+REM HIDE_PAYLOAD
+REM RESTORE_PAYLOAD
+REM WAIT_FOR_BUTTON_PRESS
+REM DISABLE_BUTTON
+REM ENABLE_BUTTON
+REM BUTTON_DEF my_button
+REM   STRINGLN pressed
+REM END_BUTTON_DEF

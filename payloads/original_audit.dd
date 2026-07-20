@@ -1,0 +1,135 @@
+REM kducky Regression Payload — exercises every feature
+REM Use: run through Interpreter → DesktopPlatform, assert no errors
+
+DEFINE #DELAY_VAL 100
+DEFINE #STR Hello world
+
+REM ── Variable basics ──
+VAR $counter = 0
+VAR $max = 5
+VAR $result = 0
+$counter = 1
+
+REM ── Expressions ──
+VAR $calc = (1 + 2) * 3
+$calc = $calc ^ 2
+VAR $flags = $calc & 0xFF
+
+REM ── IF / ELSE IF / ELSE ──
+IF ($counter == 1) THEN
+  STRINGLN counter_is_one
+ELSE IF ($counter == 2) THEN
+  STRINGLN counter_is_two
+ELSE
+  STRINGLN other
+END_IF
+
+REM ── WHILE + BREAK + CONTINUE ──
+WHILE ($max > 0)
+  $max = $max - 1
+  IF ($max == 3) THEN
+    CONTINUE
+  END_IF
+  IF ($max == 0) THEN
+    BREAK
+  END_IF
+  STRINGLN loop_body
+END_WHILE
+
+REM ── DEFINE preprocessor ──
+DELAY #DELAY_VAL
+STRINGLN #STR
+
+REM ── Keyboard output ──
+STRING the quick brown fox
+STRINGLN jumps over the lazy dog
+CTRL SHIFT ESC
+ALT TAB
+GUI r
+INJECT_MOD
+CTRL ALT DEL
+RESET
+
+REM ── HOLD / RELEASE (modifier + action key) ──
+INJECT_MOD
+HOLD SHIFT
+STRING a
+INJECT_MOD
+RELEASE SHIFT
+HOLD SPACE
+DELAY 50
+RELEASE SPACE
+
+REM ── INJECT_MOD standalone ──
+INJECT_MOD
+INJECT_MOD
+
+REM ── Delay commands ──
+DELAY 500
+DEFAULTDELAY 30
+DEFAULTCHARDELAY 5
+
+REM ── Random ──
+RANDOM_CHAR
+RANDOM_LETTER
+RANDOM_NUMBER
+RANDOM_SPECIAL
+RANDOM_LOWERCASE_LETTER
+RANDOM_UPPERCASE_LETTER
+
+REM ── Functions ──
+FUNCTION greet()
+  STRINGLN hello_from_fn
+END_FUNCTION
+greet()
+
+FUNCTION add()
+  VAR $local = 0
+  $local = 100
+  RETURN 42
+END_FUNCTION
+VAR $fn_result = add()
+
+REM ── REPEAT ──
+STRINGLN repeat_me
+REPEAT 2
+
+REM ── Payload control ──
+RESET
+
+REM ── LED ──
+LED_G
+
+REM ── DUCKY_LANG layout switching ──
+DUCKY_LANG DE
+STRING äöü
+DUCKY_LANG US
+
+REM ── Comment syntax (both styles) ──
+// this is a comment
+REM this is also a comment
+REM_BLOCK
+multi
+line
+comment
+END_REM
+
+REM ── Attack mode ──
+ATTACKMODE HID STORAGE
+SAVE_ATTACKMODE
+RESTORE_ATTACKMODE
+
+REM ── Lock keys ──
+SAVE_HOST_KEYBOARD_LOCK_STATE
+WAIT_FOR_CAPS_OFF
+WAIT_FOR_NUM_ON
+WAIT_FOR_SCROLL_CHANGE
+RESTORE_HOST_KEYBOARD_LOCK_STATE
+
+REM ── Hide / Restore payload ──
+HIDE_PAYLOAD
+RESTORE_PAYLOAD
+
+REM ── TRUE / FALSE constants ──
+VAR $t = TRUE
+VAR $f = FALSE
