@@ -44,13 +44,10 @@ from ducky.ast import (  # noqa: E402
     VarDef,
     WhileStmt,
 )
+from ducky.errors import InterpreterError  # noqa: E402
 from ducky.platform import PlatformInterface  # noqa: E402
 from ducky.tokens import ActionKey, Operator  # noqa: E402
 from ducky.utils.visitor import NodeVisitor  # noqa: E402
-
-
-class InterpreterError(Exception):
-    """Runtime error during payload execution."""
 
 
 class _BreakSignal(BaseException):

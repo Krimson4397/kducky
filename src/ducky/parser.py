@@ -5,6 +5,8 @@ Reports the first syntax error with a diagnostic — no error recovery
 beyond that point.
 """
 
+from ducky.errors import ParseError  # noqa: E402
+
 print("[ducky.parser] loading module...")  # noqa: E402
 
 from ducky.ast import (  # noqa: E402
@@ -73,19 +75,6 @@ __all__ = [
     "NodeVisitor",
     "ParseError",
 ]
-
-# ── Public error type ────────────────────────────────────────────────────────
-
-
-class ParseError(Exception):
-    """Raised when the parser encounters invalid syntax."""
-
-    def __init__(self, message: str, line: int = 0, column: int = 0) -> None:
-        self.message = message
-        self.line = line
-        self.column = column
-        super().__init__(f"Line {line}, col {column}: {message}")
-
 
 # ── Token-to-enum mappings ───────────────────────────────────────────────────
 

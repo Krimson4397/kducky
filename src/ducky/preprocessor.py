@@ -8,13 +8,7 @@ Operates on raw source text *before* lexing:
 4. Skips substitution inside ``"..."`` quoted strings
 """
 
-
-class PreprocessorError(Exception):
-    """Preprocessor error with line number."""
-
-    def __init__(self, message: str, line: int) -> None:
-        super().__init__(f"[ERROR] line {line}: {message}")
-        self.line = line
+from ducky.errors import PreprocessorError
 
 
 class Preprocessor:

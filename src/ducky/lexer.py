@@ -4,20 +4,11 @@ Converts source text into a stream of tokens (Token data class).
 Tokenization rules per the Engineering Spec, §3.2.
 """
 
+from ducky.errors import LexerError  # noqa: E402
+
 print("[ducky.lexer] loading module...")  # noqa: E402
 
 from ducky.tokens import Token, TokenType  # noqa: E402
-
-
-class LexerError(Exception):
-    """Raised when the lexer encounters invalid input."""
-
-    def __init__(self, message: str, line: int, column: int) -> None:
-        self.message = message
-        self.line = line
-        self.column = column
-        super().__init__(f"Line {line}, col {column}: {message}")
-
 
 # ── Keyword map ────────────────────────────────────────────────────────────
 # Case-insensitive: look up source text uppercased.
