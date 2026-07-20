@@ -6,8 +6,10 @@ print("[ducky.interpreter] loading module...")  # noqa: E402
 
 from ducky.ast import (  # noqa: E402
     AssignStmt,
+    AttackModeStmt,
     BinaryOp,
     BreakStmt,
+    ButtonDefStmt,
     CallExpr,
     CallStmt,
     ComboStmt,
@@ -15,25 +17,36 @@ from ducky.ast import (  # noqa: E402
     DefaultCharDelayStmt,
     DefaultDelayStmt,
     DelayStmt,
+    DisableButtonStmt,
     DollarIdentifierExpr,
     DuckyLangStmt,
+    EnableButtonStmt,
     Expr,
     ExtensionStmt,
     FunctionDef,
     GroupExpr,
+    HidePayloadStmt,
     HoldStmt,
     IdentifierStmt,
     IfStmt,
     InjectModStmt,
     IntegerExpr,
     KeyStmt,
+    LedStmt,
+    LockKeyState,
+    LockKeyType,
     RandomStmt,
     RandomType,
     ReleaseStmt,
     RepeatStmt,
     ResetStmt,
     RestartPayloadStmt,
+    RestoreAttackModeStmt,
+    RestoreHostLockStateStmt,
+    RestorePayloadStmt,
     ReturnStmt,
+    SaveAttackModeStmt,
+    SaveHostLockStateStmt,
     Script,
     Stmt,
     StopPayloadStmt,
@@ -42,6 +55,8 @@ from ducky.ast import (  # noqa: E402
     StringStmt,
     UnaryOp,
     VarDef,
+    WaitForButtonPressStmt,
+    WaitForKeyStmt,
     WhileStmt,
 )
 from ducky.errors import InterpreterError  # noqa: E402
@@ -79,6 +94,7 @@ class Interpreter(NodeVisitor):
         self._last_stmt: Stmt | None = None
         self._loop_depth: int = 0
         self._extensions: dict[str, tuple[Stmt, ...]] = {}
+        self._button_handlers: dict[str, tuple[Stmt, ...]] = {}
 
     def interpret(self, script: Script) -> None:
         """Execute a parsed Script against the platform."""
@@ -87,15 +103,17 @@ class Interpreter(NodeVisitor):
     # ── Script (top-level) ─────────────────────────────────────────────
 
     def visit_Script(self, node: Script) -> None:
-        # Phase 1: register all FunctionDef and ExtensionStmt nodes
+        # Phase 1: register all FunctionDef, ExtensionStmt, and ButtonDefStmt nodes
         for stmt in node.statements:
             if isinstance(stmt, FunctionDef):
                 self._functions[stmt.name] = (stmt.params, stmt.body)
             elif isinstance(stmt, ExtensionStmt):
                 self._extensions[stmt.name] = stmt.body
-        # Phase 2: execute all non-FunctionDef, non-ExtensionStmt statements
+            elif isinstance(stmt, ButtonDefStmt):
+                self._button_handlers[stmt.name] = stmt.body
+        # Phase 2: execute all non-definition statements
         for stmt in node.statements:
-            if not isinstance(stmt, (FunctionDef, ExtensionStmt)):
+            if not isinstance(stmt, (FunctionDef, ExtensionStmt, ButtonDefStmt)):
                 self._visit_statement(stmt)
 
     def _visit_statement(self, stmt: Stmt) -> None:
@@ -240,6 +258,60 @@ class Interpreter(NodeVisitor):
     def visit_ResetStmt(self, node: ResetStmt) -> None:
         self.platform.release_all()
 
+    # ── LED ──────────────────────────────────────────────────────────
+
+    def visit_LedStmt(self, node: LedStmt) -> None:
+        """Set the device LED state."""
+        self.platform.set_led(node.state)
+
+    # ── Attack mode ──────────────────────────────────────────────────
+
+    def visit_AttackModeStmt(self, node: AttackModeStmt) -> None:
+        """Configure USB device mode and identifiers."""
+        self.platform.set_attack_mode(node.params)
+
+    def visit_SaveAttackModeStmt(self, node: SaveAttackModeStmt) -> None:
+        """Save the current attack mode configuration."""
+        self.platform.save_attack_mode()
+
+    def visit_RestoreAttackModeStmt(self, node: RestoreAttackModeStmt) -> None:
+        """Restore a previously saved attack mode configuration."""
+        self.platform.restore_attack_mode()
+
+    # ── Lock key state ──────────────────────────────────────────────
+
+    def visit_SaveHostLockStateStmt(self, node: SaveHostLockStateStmt) -> None:
+        """Save current host lock key state for later restore."""
+        self.platform.save_lock_state()
+
+    def visit_RestoreHostLockStateStmt(self, node: RestoreHostLockStateStmt) -> None:
+        """Restore previously saved host lock key state."""
+        self.platform.restore_lock_state()
+
+    def visit_WaitForKeyStmt(self, node: WaitForKeyStmt) -> None:
+        """Block until a host lock key reaches a target state."""
+        if node.lock_key == LockKeyType.CAPS:
+            getter = self.platform.get_caps_lock
+        elif node.lock_key == LockKeyType.NUM:
+            getter = self.platform.get_num_lock
+        elif node.lock_key == LockKeyType.SCROLL:
+            getter = self.platform.get_scroll_lock
+        else:
+            raise InterpreterError(f"Unknown lock key type: {node.lock_key}")
+
+        if node.state == LockKeyState.CHANGE:
+            current = getter()
+            while getter() == current:
+                self.platform.delay_ms(50)
+        elif node.state == LockKeyState.ON:
+            while not getter():
+                self.platform.delay_ms(50)
+        elif node.state == LockKeyState.OFF:
+            while getter():
+                self.platform.delay_ms(50)
+        else:
+            raise InterpreterError(f"Unknown lock key state: {node.state}")
+
     def visit_StopPayloadStmt(self, node: StopPayloadStmt) -> None:
         self.platform.stop_payload()
 
@@ -349,6 +421,37 @@ class Interpreter(NodeVisitor):
     def visit_DuckyLangStmt(self, node: DuckyLangStmt) -> None:
         """Switch keyboard layout at runtime per DUCKY_LANG."""
         self.platform.set_layout(node.language)
+
+    # ── Button handlers ──────────────────────────────────────────────
+
+    def visit_ButtonDefStmt(self, node: ButtonDefStmt) -> None:
+        """Register a button handler body (not executed at definition)."""
+        # Registration happens in visit_Script phase-1.
+        # This visitor is never called during normal execution
+        # (ButtonDefStmt is skipped in phase-2).
+        pass
+
+    def visit_WaitForButtonPressStmt(self, node: WaitForButtonPressStmt) -> None:
+        """Block until the hardware button is pressed."""
+        self.platform.wait_for_button_press()
+
+    def visit_DisableButtonStmt(self, node: DisableButtonStmt) -> None:
+        """Disable the hardware button handler."""
+        self.platform.disable_button()
+
+    def visit_EnableButtonStmt(self, node: EnableButtonStmt) -> None:
+        """Enable the hardware button handler."""
+        self.platform.enable_button()
+
+    # ── Payload hide/restore ────────────────────────────────────────
+
+    def visit_HidePayloadStmt(self, node: HidePayloadStmt) -> None:
+        """Hide the payload file from host mass storage."""
+        self.platform.hide_payload()
+
+    def visit_RestorePayloadStmt(self, node: RestorePayloadStmt) -> None:
+        """Restore a previously hidden payload file to visibility."""
+        self.platform.restore_payload()
 
     # ── Expression evaluation ──────────────────────────────────────────
 

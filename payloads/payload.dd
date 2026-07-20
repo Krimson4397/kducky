@@ -7,8 +7,8 @@ REM the window is focused.  This payload ONLY types text into the
 REM active window.  No system-level key combos (CTRL, ALT, GUI) are
 REM used, so it is safe to run on any unlocked desktop.
 REM
-REM Execution order maximizes coverage before the first expected
-REM failure (LED_G at the very end).
+REM Execution order builds from basic to advanced features.
+REM The payload runs to completion and types "all_done".
 REM
 REM   1. Preprocessor
 REM   2. Variables
@@ -21,10 +21,9 @@ REM   8. RESET
 REM   9. Layout switching (DUCKY_LANG)
 REM  10. DELAY / DEFAULTDELAY / DEFAULTCHARDELAY
 REM  11. REPEAT
-REM  12. LED_G (expected crash — no visit_LedStmt)
+REM  12. Now-working features (LED_G, HIDE/RESTORE, etc.)
 REM
-REM Everything before LED_G is testable by reading what appears
-REM on screen.
+REM Everything runs to completion and types "all_done" at the end.
 REM ═══════════════════════════════════════════════════════════════
 
 REM ── SECTION 1: Preprocessor (text-level, before lexer) ────────
@@ -143,24 +142,11 @@ REM ── SECTION 11: REPEAT ────────────────�
 STRINGLN repeat_me
 REPEAT 2
 
-REM ── SECTION 12: LED_G (expected crash) ──────────────────────
-REM ⌄⌄⌄⌄ EXECUTION STOPS HERE (no visit_LedStmt) ⌄⌄⌄⌄
-LED_G
+REM ── SECTION 12: Now-working features ──────────────────────
+REM These used to crash — now all work.
 
-REM ── Unreachable (kept for reference): ─────────────────────────
-REM ATTACKMODE HID STORAGE
-REM SAVE_ATTACKMODE
-REM RESTORE_ATTACKMODE
-REM SAVE_HOST_KEYBOARD_LOCK_STATE
-REM WAIT_FOR_CAPS_OFF
-REM WAIT_FOR_NUM_ON
-REM WAIT_FOR_SCROLL_CHANGE
-REM RESTORE_HOST_KEYBOARD_LOCK_STATE
-REM HIDE_PAYLOAD
-REM RESTORE_PAYLOAD
-REM WAIT_FOR_BUTTON_PRESS
-REM DISABLE_BUTTON
-REM ENABLE_BUTTON
-REM BUTTON_DEF my_button
-REM   STRINGLN pressed
-REM END_BUTTON_DEF
+LED_G
+LED_OFF
+HIDE_PAYLOAD
+RESTORE_PAYLOAD
+STRINGLN all_done

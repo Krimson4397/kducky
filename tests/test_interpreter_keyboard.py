@@ -3,19 +3,35 @@
 import pytest
 
 from ducky.ast import (
+    AttackModeStmt,
+    ButtonDefStmt,
     ComboStmt,
     DefaultCharDelayStmt,
     DefaultDelayStmt,
+    DisableButtonStmt,
+    EnableButtonStmt,
+    HidePayloadStmt,
     HoldStmt,
     InjectModStmt,
     IntegerExpr,
     KeyStmt,
+    LedState,
+    LedStmt,
+    LockKeyState,
+    LockKeyType,
     RandomStmt,
     RandomType,
     ReleaseStmt,
+    RestoreAttackModeStmt,
+    RestoreHostLockStateStmt,
+    RestorePayloadStmt,
+    SaveAttackModeStmt,
+    SaveHostLockStateStmt,
     Script,
     StringLnStmt,
     StringStmt,
+    WaitForButtonPressStmt,
+    WaitForKeyStmt,
 )
 from ducky.interpreter import Interpreter
 from ducky.platform.desktop import DesktopPlatform
@@ -360,3 +376,120 @@ class TestCallOrder:
             ("release_all",),
         ]
         assert platform.calls == expected
+
+
+class TestInterpreterKeyboard:
+    """Tests for interpreter keyboard commands (LED, attack mode, lock key, button, payload)."""
+
+    def setup_method(self) -> None:
+        """Create fresh platform and interpreter for each test."""
+        self.platform = DesktopPlatform()
+        self.interp = Interpreter(self.platform)
+
+    # ── LED ────────────────────────────────────────────────────────────────
+
+    def test_led_r(self) -> None:
+        """LED_R calls set_led(LedState.R)."""
+        self.interp.interpret(Script((LedStmt(LedState.R),)))
+        assert ("set_led", LedState.R) in self.platform.calls
+
+    def test_led_g(self) -> None:
+        """LED_G calls set_led(LedState.G)."""
+        self.interp.interpret(Script((LedStmt(LedState.G),)))
+        assert ("set_led", LedState.G) in self.platform.calls
+
+    def test_led_b(self) -> None:
+        """LED_B calls set_led(LedState.B)."""
+        self.interp.interpret(Script((LedStmt(LedState.B),)))
+        assert ("set_led", LedState.B) in self.platform.calls
+
+    def test_led_off(self) -> None:
+        """LED_OFF calls set_led(LedState.OFF)."""
+        self.interp.interpret(Script((LedStmt(LedState.OFF),)))
+        assert ("set_led", LedState.OFF) in self.platform.calls
+
+    # ── Attack mode ────────────────────────────────────────────────────────
+
+    def test_attack_mode(self) -> None:
+        """ATTACKMODE HID STORAGE calls set_attack_mode with params."""
+        self.interp.interpret(Script((AttackModeStmt(("HID", "STORAGE")),)))
+        assert ("set_attack_mode", ("HID", "STORAGE")) in self.platform.calls
+
+    def test_save_attack_mode(self) -> None:
+        """SAVE_ATTACKMODE calls save_attack_mode()."""
+        self.interp.interpret(Script((SaveAttackModeStmt(),)))
+        assert ("save_attack_mode",) in self.platform.calls
+
+    def test_restore_attack_mode(self) -> None:
+        """RESTORE_ATTACKMODE calls restore_attack_mode()."""
+        self.interp.interpret(Script((RestoreAttackModeStmt(),)))
+        assert ("restore_attack_mode",) in self.platform.calls
+
+    # ── Lock key state ─────────────────────────────────────────────────────
+
+    def test_save_host_lock_state(self) -> None:
+        """SAVE_HOST_KEYBOARD_LOCK_STATE calls save_lock_state()."""
+        self.interp.interpret(Script((SaveHostLockStateStmt(),)))
+        assert ("save_lock_state",) in self.platform.calls
+
+    def test_restore_host_lock_state(self) -> None:
+        """RESTORE_HOST_KEYBOARD_LOCK_STATE calls restore_lock_state()."""
+        self.interp.interpret(Script((RestoreHostLockStateStmt(),)))
+        assert ("restore_lock_state",) in self.platform.calls
+
+    def test_wait_for_caps_on(self) -> None:
+        """WAIT_FOR_CAPS_ON polls get_caps_lock (pre-set caps on so poll loop exits)."""
+        self.platform._caps_lock = True
+        self.interp.interpret(Script((WaitForKeyStmt(LockKeyType.CAPS, LockKeyState.ON),)))
+        assert ("get_caps_lock",) in self.platform.calls
+
+    def test_wait_for_caps_off(self) -> None:
+        """WAIT_FOR_CAPS_OFF polls get_caps_lock (pre-set caps off so poll loop exits)."""
+        self.platform._caps_lock = False
+        self.interp.interpret(Script((WaitForKeyStmt(LockKeyType.CAPS, LockKeyState.OFF),)))
+        assert ("get_caps_lock",) in self.platform.calls
+
+    def test_wait_for_num_on(self) -> None:
+        """WAIT_FOR_NUM_ON polls get_num_lock (pre-set num on so poll loop exits)."""
+        self.platform._num_lock = True
+        self.interp.interpret(Script((WaitForKeyStmt(LockKeyType.NUM, LockKeyState.ON),)))
+        assert ("get_num_lock",) in self.platform.calls
+
+    # ── Button ─────────────────────────────────────────────────────────────
+
+    def test_button_def_registers_handler(self) -> None:
+        """BUTTON_DEF registers body but does NOT execute it during interpret."""
+        self.interp.interpret(Script((
+            ButtonDefStmt("my_btn", (StringLnStmt("pressed"),)),
+        )))
+        # Body must not have been executed (no typing or key press calls)
+        assert not any(
+            c[0] in ("type_string", "press_key") for c in self.platform.calls
+        )
+
+    def test_enable_button(self) -> None:
+        """ENABLE_BUTTON calls enable_button()."""
+        self.interp.interpret(Script((EnableButtonStmt(),)))
+        assert ("enable_button",) in self.platform.calls
+
+    def test_disable_button(self) -> None:
+        """DISABLE_BUTTON calls disable_button()."""
+        self.interp.interpret(Script((DisableButtonStmt(),)))
+        assert ("disable_button",) in self.platform.calls
+
+    def test_wait_for_button_press(self) -> None:
+        """WAIT_FOR_BUTTON_PRESS calls wait_for_button_press()."""
+        self.interp.interpret(Script((WaitForButtonPressStmt(),)))
+        assert ("wait_for_button_press",) in self.platform.calls
+
+    # ── Payload hide / restore ─────────────────────────────────────────────
+
+    def test_hide_payload(self) -> None:
+        """HIDE_PAYLOAD calls hide_payload()."""
+        self.interp.interpret(Script((HidePayloadStmt(),)))
+        assert ("hide_payload",) in self.platform.calls
+
+    def test_restore_payload(self) -> None:
+        """RESTORE_PAYLOAD calls restore_payload()."""
+        self.interp.interpret(Script((RestorePayloadStmt(),)))
+        assert ("restore_payload",) in self.platform.calls
