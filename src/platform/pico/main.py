@@ -25,6 +25,7 @@ from ducky.parser import DuckyParser
 from ducky.preprocessor import Preprocessor
 from ducky.platform import RestartPayloadSignal, StopPayloadSignal
 from platform.pico.backends import PicoPlatform
+from supervisor import runtime as _runtime
 
 # ── Constants ──────────────────────────────────────────────────────────
 
@@ -34,6 +35,7 @@ _LED_BLINK: float = 0.5  # seconds between LED blinks during startup
 
 def main() -> None:
     """Load and execute ``/payload.dd`` on the Pico."""
+    _runtime.autoreload = False
     print("[pico] creating platform...")
     platform = PicoPlatform()
 
