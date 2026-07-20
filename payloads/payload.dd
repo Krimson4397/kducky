@@ -1,30 +1,41 @@
 REM ═══════════════════════════════════════════════════════════════
 REM kducky Official Regression Payload
-REM Version: 1.1 — Safe Edition (No system key combos)
+REM Version: 1.2 — Full Demo (opens Notepad via GUI r)
 REM
-REM BEFORE RUNNING: Open Notepad (or any text editor) and ensure
-REM the window is focused.  This payload ONLY types text into the
-REM active window.  No system-level key combos (CTRL, ALT, GUI) are
-REM used, so it is safe to run on any unlocked desktop.
+REM This payload opens the Windows Run dialog (GUI r), launches
+REM Notepad, then types the full DuckyScript 3 regression test
+REM output into Notepad.
 REM
 REM Execution order builds from basic to advanced features.
 REM The payload runs to completion and types "all_done".
 REM
-REM   1. Preprocessor
-REM   2. Variables
-REM   3. Expressions
-REM   4. Control flow (IF/ELSE/WHILE/BREAK/CONTINUE)
-REM   5. Functions (definition, call, return value)
-REM   6. Random + STRING output
-REM   7. HOLD/RELEASE (SHIFT + SPACE only)
-REM   8. RESET
-REM   9. Layout switching (DUCKY_LANG)
-REM  10. DELAY / DEFAULTDELAY / DEFAULTCHARDELAY
-REM  11. REPEAT
-REM  12. LED blink pattern
+REM   1. Open Notepad (GUI r → "notepad" → ENTER)
+REM   2. Preprocessor
+REM   3. Variables
+REM   4. Expressions
+REM   5. Control flow (IF/ELSE/WHILE/BREAK/CONTINUE)
+REM   6. Functions (definition, call, return value)
+REM   7. Random + STRING output
+REM   8. HOLD/RELEASE (SHIFT + SPACE only)
+REM   9. RESET
+REM  10. Layout switching (DUCKY_LANG)
+REM  11. DELAY / DEFAULTDELAY / DEFAULTCHARDELAY
+REM  12. REPEAT
+REM  13. LED blink pattern
+REM  14. Payload hide/restore
 REM
 REM Everything runs to completion and types "all_done" at the end.
 REM ═══════════════════════════════════════════════════════════════
+
+REM ── Open Notepad (GUI r) ─────────────────────────────────────
+REM Wait for host to detect the HID keyboard
+
+DELAY 1000
+GUI r
+DELAY 500
+STRING notepad
+ENTER
+DELAY 1000
 
 REM ── SECTION 1: Preprocessor (text-level, before lexer) ────────
 
