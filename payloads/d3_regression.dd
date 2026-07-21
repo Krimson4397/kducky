@@ -12,8 +12,9 @@ DELAY 1000
 
 REM ── 1. JITTER ─────────────────────────────────────────────────
 JITTER ON
-JITTER DELAY 10 30
-STRINGLN Typing_with_jitter_ON
+JITTER DELAY 200 500
+STRINGLN Watch_each_letter_appear_slowly_with_random_delays...
+STRINGLN See_how_uneven_the_typing_speed_is?
 JITTER OFF
 STRINGLN [JITTER successful]
 
