@@ -158,7 +158,7 @@ This section **must** be updated at the completion of every milestone. It descri
 | Project Version       | 0.2.0 (alpha)                    |
 | Completed Milestone   | M18 — Complete Interpreter       |
 | Current Branch        | main                             |
-| Last Commit           | eadc1c8                          |
+| Last Commit           | 25e4249                          |
 | Repository Status     | Clean working tree                 |
 | Next Milestone        | M19 — Hardware Validation (Pico) |
 | Blocking Issues       | None                             |
@@ -166,22 +166,29 @@ This section **must** be updated at the completion of every milestone. It descri
 
 ### Files Created
 
-- `payloads/payload.dd` — Safe regression payload (v1.1, no system key combos). Exercises all interpreter features and runs to completion (no crashes). Replaces `safe_regression.dd`.
-- `payloads/regression_test.dd` — Original regression payload (v1.0, includes Windows UI key combos for manual testing with caution).
-- `payloads/pwn_wifi.dd` — Attack payload: ATTACKMODE HID STORAGE → PowerShell as Admin → disable Defender → run PS1 from DUCKY drive (visible window).
-- `payloads/pwn_wifi_hidden.dd` — Same as pwn_wifi.dd but launches via Start-Process -WindowStyle Hidden (no visible window).
-- `payloads/sy_cred.ps1` — PowerShell script: browser credential extraction (Chrome/Brave/Firefox/Edge), WiFi password dump, system info gathering. Called by pwn_wifi payloads.
+- `tests/test_d3_extensions.py` — 14 tests for REBOOT, REPLAY, JITTER, INJECT_VAR, $_ internal vars, END_STRING block mode, MOUSE operations.
+- `tests/test_parser_edge_cases.py` — 55 edge case tests (error recovery, expression precedence, function parsing corner cases, misc).
+- `tests/test_interpreter_edge_cases.py` — 48 edge case tests (nested functions, recursion, nested loops, variable shadowing, overflow/wrapping, REPEAT corners, function registration).
 
 ### Files Modified
 
-- `src/ducky/interpreter.py` — Added 13 visitor methods: `visit_LedStmt`, `visit_AttackModeStmt`, `visit_SaveAttackModeStmt`, `visit_RestoreAttackModeStmt`, `visit_SaveHostLockStateStmt`, `visit_RestoreHostLockStateStmt`, `visit_WaitForKeyStmt`, `visit_ButtonDefStmt`, `visit_WaitForButtonPressStmt`, `visit_DisableButtonStmt`, `visit_EnableButtonStmt`, `visit_HidePayloadStmt`, `visit_RestorePayloadStmt`. Added `_button_handlers` dict. Updated `visit_Script` two-phase registration to handle `ButtonDefStmt`.
-- `tests/test_interpreter_keyboard.py` — 18 new tests covering all 13 new visitors.
-- `payloads/payload.dd` — Removed "expected crash" section; now runs to completion with 356 tokens, 47 statements.
-- `deploy.py` — Added `payloads/payload.dd` to file discovery for CIRCUITPY deployment.
+- `src/ducky/tokens.py` — Added `TokenType` members: `JITTER`, `ON`, `OFF`, `INJECT_VAR`, `END_STRING`, `END_STRINGLN`, `REBOOT`, `REPLAY`, `MOUSE_MOVE`, `MOUSE_MOVE_TO`, `MOUSE_CLICK`, `MOUSE_DOWN`, `MOUSE_UP`, `MOUSE_SCROLL`.
+- `src/ducky/lexer.py` — Added 14 new keyword mappings. Modified STRING/STRINGLN handlers to detect block mode (no inline body → enter block mode, read lines until END_STRING/END_STRINGLN).
+- `src/ducky/ast/nodes.py` — Added AST nodes: `RebootStmt`, `ReplayStmt`, `JitterStmt`, `InjectVarStmt`, `MouseStmt`, `MouseAction` enum, `MouseButton` enum.
+- `src/ducky/ast/__init__.py` — Exported all new AST types.
+- `src/ducky/parser.py` — Added dispatch and parse methods for REBOOT, REPLAY, JITTER, INJECT_VAR, and all 6 MOUSE variants. Changed `_parse_release_stmt` to not require INJECT_MOD before RELEASE of modifier.
+- `src/ducky/platform/__init__.py` — Added 5 protocol methods: `reboot_target()`, plus 6 mouse methods (`mouse_move`, `mouse_move_to`, `mouse_click`, `mouse_down`, `mouse_up`, `mouse_scroll`).
+- `src/ducky/platform/desktop.py` — Added stub implementations for all new protocol methods (recording via `_record()`).
+- `src/platform/pico/backends.py` — Added `Mouse` import, `_mouse` init, implementations for `reboot_target()` (GUI r + shutdown), 5 mouse methods using `adafruit_hid.mouse`, and `mouse_move_to` as no-op.
+- `src/ducky/interpreter.py` — Added `_jitter_enabled/min/max` state, `_inject_var_pending` flag, `_populate_internal_vars()` (pre-populates 7 `$_` vars into globals), visitor methods for all new AST nodes, and `_type_text` now handles `\n` for block-mode STRINGLN.
+- `src/platform/pico/main.py` — Refactored `main()` into retry loop catching `RestartPayloadSignal` for REPLAY support. Added `_runtime.autoreload = False` to prevent file-rename restarts.
+- `src/ducky/interpreter.py` — Added `visit_ReplayStmt` raising `RestartPayloadSignal`, `visit_RebootStmt` calling `platform.reboot_target()`, `visit_JitterStmt`, `visit_InjectVarStmt`, `visit_MouseStmt`, `_type_text` handles `\n` for block-mode STRINGLN.
+- `tests/test_interpreter_keyboard.py` — Fixed 11 tests to account for 3 new `_populate_internal_vars()` platform calls during interpreter init.
+- `tests/test_interpreter_functions.py` — Fixed 1 test expecting empty `platform.calls` (now 3 init calls).
 
 ### Tests Executed
 
-- `python -m pytest tests/ -x -q` — 633 passed, 6 skipped (18 new interpreter tests)
+- `python -m pytest tests/ -x -q` — **784 passed, 6 skipped** (103 edge-case + 14 REBOOT/REPLAY/JITTER + 7 INJECT_VAR + 7 $_ vars + 12 END_STRING + 13 MOUSE + backfill fixes)
 - `ruff check src/ tests/` — All checks passed
 
 ### Acceptance Criteria Completed
@@ -253,6 +260,15 @@ This section **must** be updated at the completion of every milestone. It descri
 - [x] `payloads/payload.dd` updated — runs to completion, types "all_done" as last line
 - [x] `deploy.py` copies `payload.dd` to CIRCUITPY drive
 - [x] Full suite: 633 tests pass, ruff clean, working tree clean
+- [x] **B1: REBOOT** — `reboot_target()` sends GUI r → shutdown /r /t 0; full pipeline (token → AST → parser → interpreter → PicoPlatform)
+- [x] **B2: REPLAY** — `ReplayStmt` raises `RestartPayloadSignal`; `main.py` retry loop catches signal and restarts
+- [x] **B3: JITTER** — `JITTER ON/OFF/DELAY min max`; `_maybe_jitter()` adds random per-char delay; integrated into `_type_text`
+- [x] **B4: INJECT_VAR** — `INJECT_VAR $name` types variable value as keystrokes; searches locals → globals; keyboard error guard
+- [x] **B5: $_ internal variables** — `_populate_internal_vars()` pre-populates `$_IS_CAPSLOCK_ON`, `$_IS_NUMLOCK_ON`, `$_IS_SCROLLLOCK_ON` (from platform), `$_RANDOM_MIN=0`, `$_RANDOM_MAX=65535`, `$_RANDOM_INT=0`, `$_BUTTON_ENABLED=1`
+- [x] **B6: END_STRING** — STRING/STRINGLN block mode: no inline body → enter block, read lines until `END_STRING`/`END_STRINGLN`, strip leading whitespace, join STRING with `""` or STRINGLN with `"\n"`, `_type_text` handles `\n` by pressing ENTER
+- [x] **B7: MOUSE** — All 6 variants (MOUSE_MOVE, MOUSE_MOVE_TO, MOUSE_CLICK, MOUSE_DOWN, MOUSE_UP, MOUSE_SCROLL) through full pipeline; LEFT/RIGHT/MIDDLE buttons via existing tokens + IDENTIFIER("MIDDLE"); PicoPlatform uses `adafruit_hid.mouse`; `mouse_move_to` is HID no-op
+- [x] Phase A: 103 edge-case tests (error recovery, nested functions, recursion, nested loops, variable shadowing, overflow, REPEAT corners, function registration)
+- [x] **Full suite: 784 tests pass, ruff clean, working tree clean**
 
 ### Remaining Milestones
 
@@ -285,33 +301,22 @@ Milestones 19–20 from the implementation roadmap.
 
 ### Notes for the Next Session
 
-Milestone 18 is complete. All 13 AST visitor methods that were missing are now implemented:
+**D3 Extensions complete (B1-B7).** 784 tests (↑151 from M18's 633). All D3 Extensions implemented:
 
-**Architecture:**
-- All 13 visitors dispatch through the same `visit()` → `visit_ClassName()` pattern
-- `ButtonDefStmt` uses two-phase registration (same as `FunctionDef`): registered in `visit_Script` phase-1, execution skipped in phase-2
-- `WaitForKeyStmt` uses a polling loop with 50ms delay via `platform.delay_ms()`
-- No new platform methods were needed — all already existed in `PlatformInterface`, `DesktopPlatform`, and `PicoPlatform`
+- **B1 (REBOOT):** Shuts down target via `GUI r → shutdown /r /t 0`.
+- **B2 (REPLAY):** `RestartPayloadSignal` caught by `main.py` retry loop — payload restarts from beginning.
+- **B3 (JITTER):** Random keystroke delays (JITTER ON/OFF/DELAY min max). Integrated into `_type_text`.
+- **B4 (INJECT_VAR):** Types any variable's value as keystrokes. Uses locals→globals scope lookup.
+- **B5 ($_ internal vars):** 7 pre-populated read-only/writable system variables (lock states, random control, button enabled).
+- **B6 (END_STRING/END_STRINGLN):** STRING/STRINGLN block mode — multi-line string blocks with indent stripping. Parser unchanged (lexer emits STRING_BODY).
+- **B7 (MOUSE):** All 6 DuckyScript MOUSE operations via new PlatformInterface mouse methods. PicoPlatform uses `adafruit_hid.mouse`. `MOUSE_MOVE_TO` is no-op (HID limitation).
+- **Phase A:** 103 edge-case tests verified no bugs in existing interpreter.
 
-**Visitors implemented:**
-1. `visit_LedStmt` — LED control (OFF/R/G/B)
-2. `visit_AttackModeStmt` — USB attack mode configuration
-3. `visit_SaveAttackModeStmt` — save attack mode state
-4. `visit_RestoreAttackModeStmt` — restore attack mode state
-5. `visit_SaveHostLockStateStmt` — save lock key state
-6. `visit_RestoreHostLockStateStmt` — restore lock key state
-7. `visit_WaitForKeyStmt` — wait for lock key state (CAPS/NUM/SCROLL, ON/OFF/CHANGE)
-8. `visit_ButtonDefStmt` — register button handler
-9. `visit_EnableButtonStmt` — enable button handler
-10. `visit_DisableButtonStmt` — disable button handler
-11. `visit_WaitForButtonPressStmt` — wait for hardware button press
-12. `visit_HidePayloadStmt` — hide payload file
-13. `visit_RestorePayloadStmt` — restore hidden payload file
-
-**Test count:** 633 passed, 6 skipped (same hardware-dependent skips)
-**Commit:** `b508745`
-
-The safe regression payload (`payloads/payload.dd`) now runs to completion — types all test output into Notepad, exercises LED/attack mode/etc., and types "all_done" at the end.
+**Key architectural changes:**
+- Pico `main.py` autoreload disabled (`_runtime.autoreload = False`) to prevent payload loop on file rename.
+- REPLAY support: `main()` wrapped in retry loop catching `RestartPayloadSignal`.
+- `_type_text` handles `\n` for block-mode STRINGLN (splits on newlines, presses ENTER between segments).
+- Interpreter init now calls `_populate_internal_vars()` making 3 platform calls (affects test assertions).
 
 Next milestone: M19 — Hardware Validation (Pico). Run the interpreter on actual Pico 2 W hardware and validate against test payloads.
 

@@ -306,6 +306,8 @@ class DuckyLexer:
                     end_keyword_len = len(end_keyword)
                     block_lines = []
                     body_line_col = col
+                    nl_line = line
+                    nl_col = col
                     while i < len(source):
                         line_start = i
                         # Skip leading whitespace to check for end marker
@@ -319,6 +321,8 @@ class DuckyLexer:
                             # Consume rest of END_STRINGLN line
                             while i < len(source) and source[i] != "\n":
                                 i += 1
+                            nl_line = line
+                            nl_col = col
                             if i < len(source) and source[i] == "\n":
                                 i += 1
                                 line += 1
@@ -339,6 +343,8 @@ class DuckyLexer:
                     combined = separator.join(block_lines)
                     if combined:
                         tokens.append(Token(TokenType.STRING_BODY, combined, line, body_line_col))
+                    if nl_line is not None:
+                        tokens.append(Token(TokenType.NEWLINE, "\n", nl_line, nl_col))
                     continue
                 else:
                     # Inline mode
@@ -377,6 +383,8 @@ class DuckyLexer:
                     end_keyword_len = len(end_keyword)
                     block_lines = []
                     body_line_col = col
+                    nl_line = line
+                    nl_col = col
                     while i < len(source):
                         line_start = i
                         # Skip leading whitespace to check for end marker
@@ -390,6 +398,8 @@ class DuckyLexer:
                             # Consume rest of END_STRING line
                             while i < len(source) and source[i] != "\n":
                                 i += 1
+                            nl_line = line
+                            nl_col = col
                             if i < len(source) and source[i] == "\n":
                                 i += 1
                                 line += 1
@@ -410,6 +420,8 @@ class DuckyLexer:
                     combined = separator.join(block_lines)
                     if combined:
                         tokens.append(Token(TokenType.STRING_BODY, combined, line, body_line_col))
+                    if nl_line is not None:
+                        tokens.append(Token(TokenType.NEWLINE, "\n", nl_line, nl_col))
                     continue
                 else:
                     # Inline mode
