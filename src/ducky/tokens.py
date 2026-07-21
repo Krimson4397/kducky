@@ -57,6 +57,8 @@ class TokenType:
     # ── Keyboard output ───────────────────────────────────────────
     STRING = auto()
     STRINGLN = auto()
+    END_STRING = auto()
+    END_STRINGLN = auto()
     INJECT_MOD = auto()
     HOLD = auto()
     RELEASE = auto()
@@ -114,6 +116,22 @@ class TokenType:
     EXTENSION = auto()
     END_EXTENSION = auto()
     DUCKY_LANG = auto()
+
+    # ── D3 extensions ────────────────────────────────────────────
+    REBOOT = auto()   # restart target computer
+    REPLAY = auto()   # restart current payload
+    JITTER = auto()   # random keystroke delay
+    INJECT_VAR = auto()  # type variable's value as keystrokes
+    ON = auto()       # JITTER ON
+    OFF = auto()      # JITTER OFF
+
+    # ── Mouse ─────────────────────────────────────────────────────
+    MOUSE_MOVE = auto()
+    MOUSE_MOVE_TO = auto()
+    MOUSE_CLICK = auto()
+    MOUSE_DOWN = auto()
+    MOUSE_UP = auto()
+    MOUSE_SCROLL = auto()
 
     # ── Operators (token types) ───────────────────────────────────
     PLUS = auto()

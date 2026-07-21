@@ -37,7 +37,7 @@ class TestFunctionRegistration:
         ))
         interpreter.interpret(script)
         assert "foo" in interpreter._functions
-        assert len(platform.calls) == 0
+        assert len(platform.calls) == 3  # only init calls (get_caps/get_num/get_scroll)
 
     def test_multiple_functions(self) -> None:
         """Multiple function definitions are all registered."""

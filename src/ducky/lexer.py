@@ -45,6 +45,8 @@ _KEYWORDS: dict[str, TokenType] = {
     # Keyboard output
     "STRING": TokenType.STRING,
     "STRINGLN": TokenType.STRINGLN,
+    "END_STRING": TokenType.END_STRING,
+    "END_STRINGLN": TokenType.END_STRINGLN,
     "INJECT_MOD": TokenType.INJECT_MOD,
     "HOLD": TokenType.HOLD,
     "RELEASE": TokenType.RELEASE,
@@ -94,6 +96,20 @@ _KEYWORDS: dict[str, TokenType] = {
     "EXTENSION": TokenType.EXTENSION,
     "END_EXTENSION": TokenType.END_EXTENSION,
     "DUCKY_LANG": TokenType.DUCKY_LANG,
+    # D3 extensions
+    "REBOOT": TokenType.REBOOT,
+    "REPLAY": TokenType.REPLAY,
+    "JITTER": TokenType.JITTER,
+    "INJECT_VAR": TokenType.INJECT_VAR,
+    "ON": TokenType.ON,
+    "OFF": TokenType.OFF,
+    # Mouse
+    "MOUSE_MOVE": TokenType.MOUSE_MOVE,
+    "MOUSE_MOVE_TO": TokenType.MOUSE_MOVE_TO,
+    "MOUSE_CLICK": TokenType.MOUSE_CLICK,
+    "MOUSE_DOWN": TokenType.MOUSE_DOWN,
+    "MOUSE_UP": TokenType.MOUSE_UP,
+    "MOUSE_SCROLL": TokenType.MOUSE_SCROLL,
     # Modifiers
     "CONTROL": TokenType.CONTROL,
     "CTRL": TokenType.CTRL,
@@ -278,9 +294,57 @@ class DuckyLexer:
                     i += 1
                     col += 1
                 body = source[body_start:i].rstrip(" ")
-                if body:
-                    tokens.append(Token(TokenType.STRING_BODY, body, line, body_col))
-                continue
+
+                if not body:
+                    # Block mode — keyword was on a line by itself
+                    if i < len(source) and source[i] == "\n":
+                        i += 1
+                        line += 1
+                        col = 1
+                    is_ln = True
+                    end_keyword = "END_STRINGLN"
+                    end_keyword_len = len(end_keyword)
+                    block_lines = []
+                    body_line_col = col
+                    while i < len(source):
+                        line_start = i
+                        # Skip leading whitespace to check for end marker
+                        while i < len(source) and source[i] in " \t":
+                            i += 1
+                        if (
+                            i + end_keyword_len <= len(source)
+                            and source[i:i + end_keyword_len].upper() == end_keyword
+                            and self._at_boundary(source, i + end_keyword_len)
+                        ):
+                            # Consume rest of END_STRINGLN line
+                            while i < len(source) and source[i] != "\n":
+                                i += 1
+                            if i < len(source) and source[i] == "\n":
+                                i += 1
+                                line += 1
+                                col = 1
+                            break
+                        # Not end marker — reset and collect full line
+                        i = line_start
+                        while i < len(source) and source[i] != "\n":
+                            i += 1
+                            col += 1
+                        raw_line = source[line_start:i]
+                        block_lines.append(raw_line.lstrip())
+                        if i < len(source) and source[i] == "\n":
+                            i += 1
+                            line += 1
+                            col = 1
+                    separator = "\n" if is_ln else ""
+                    combined = separator.join(block_lines)
+                    if combined:
+                        tokens.append(Token(TokenType.STRING_BODY, combined, line, body_line_col))
+                    continue
+                else:
+                    # Inline mode
+                    if body:
+                        tokens.append(Token(TokenType.STRING_BODY, body, line, body_col))
+                    continue
 
             # 8. STRING
             if (
@@ -301,9 +365,57 @@ class DuckyLexer:
                     i += 1
                     col += 1
                 body = source[body_start:i].rstrip(" ")
-                if body:
-                    tokens.append(Token(TokenType.STRING_BODY, body, line, body_col))
-                continue
+
+                if not body:
+                    # Block mode — keyword was on a line by itself
+                    if i < len(source) and source[i] == "\n":
+                        i += 1
+                        line += 1
+                        col = 1
+                    is_ln = False
+                    end_keyword = "END_STRING"
+                    end_keyword_len = len(end_keyword)
+                    block_lines = []
+                    body_line_col = col
+                    while i < len(source):
+                        line_start = i
+                        # Skip leading whitespace to check for end marker
+                        while i < len(source) and source[i] in " \t":
+                            i += 1
+                        if (
+                            i + end_keyword_len <= len(source)
+                            and source[i:i + end_keyword_len].upper() == end_keyword
+                            and self._at_boundary(source, i + end_keyword_len)
+                        ):
+                            # Consume rest of END_STRING line
+                            while i < len(source) and source[i] != "\n":
+                                i += 1
+                            if i < len(source) and source[i] == "\n":
+                                i += 1
+                                line += 1
+                                col = 1
+                            break
+                        # Not end marker — reset and collect full line
+                        i = line_start
+                        while i < len(source) and source[i] != "\n":
+                            i += 1
+                            col += 1
+                        raw_line = source[line_start:i]
+                        block_lines.append(raw_line.lstrip())
+                        if i < len(source) and source[i] == "\n":
+                            i += 1
+                            line += 1
+                            col = 1
+                    separator = "\n" if is_ln else ""
+                    combined = separator.join(block_lines)
+                    if combined:
+                        tokens.append(Token(TokenType.STRING_BODY, combined, line, body_line_col))
+                    continue
+                else:
+                    # Inline mode
+                    if body:
+                        tokens.append(Token(TokenType.STRING_BODY, body, line, body_col))
+                    continue
 
             # 9. ATTACKMODE — remaining tokens on line are ATTACKMODE_PARAM
             if (

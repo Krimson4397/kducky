@@ -26,6 +26,7 @@ try:
     import usb_hid
     from adafruit_hid.keyboard import Keyboard
     from adafruit_hid.keycode import Keycode as _KC  # noqa: N814
+    from adafruit_hid.mouse import Mouse as _Mouse  # noqa: N814
 
     # ── Keycode alias compatibility ──────────────────────────────────────
     # CircuitPython's Keycode uses descriptive names (KEYPAD_NUMLOCK,
@@ -227,6 +228,8 @@ class PicoPlatform:
 
         # ── HID keyboard ──────────────────────────────────────────
         self._hid_keyboard = Keyboard(usb_hid.devices)
+        # ── HID mouse ─────────────────────────────────────────────
+        self._mouse = _Mouse(usb_hid.devices)
         try:
             self._current_layout = _load_layout("US")
         except ValueError:
@@ -491,11 +494,72 @@ class PicoPlatform:
         except (OSError, RuntimeError):
             pass  # ponytail: hidden file may not exist
 
+    # ── Reboot ───────────────────────────────────────────────────────
+
+    def reboot_target(self) -> None:
+        """Reboot the target computer via GUI r -> shutdown /r /t 0."""
+        self._hid_keyboard.press(*self._mod_keycodes_for((ModifierKey.GUI,)))
+        self._hid_keyboard.press(self._keycode_for(ActionKey.R))
+        self._hid_keyboard.release_all()
+        _time.sleep(0.5)
+        for ch in "shutdown /r /t 0":
+            self.type_string(ch)
+            _time.sleep(0.01)
+        self._hid_keyboard.press(_KC.ENTER)
+        self._hid_keyboard.release_all()
+
     # ── Random ───────────────────────────────────────────────────────
 
     def random_int(self, min_val: int, max_val: int) -> int:
         """Return a random integer in [*min_val*, *max_val*] (inclusive)."""
         return _RNG.randint(min_val, max_val)
+
+    # ── Mouse ─────────────────────────────────────────────────────────
+
+    def mouse_move(self, x: int, y: int) -> None:
+        """Move mouse (relative pixels)."""
+        self._mouse.move(x, y)
+
+    def mouse_move_to(self, x: int, y: int) -> None:
+        """Move mouse to absolute position.
+        ponytail: HID only supports relative moves.  Absolute positioning
+        requires screen resolution knowledge unavailable via HID.
+        """
+        pass
+
+    def mouse_click(self, button: str) -> None:
+        """Click a mouse button."""
+        btn = button.upper()
+        if btn == "LEFT":
+            self._mouse.click(_Mouse.LEFT_BUTTON)
+        elif btn == "RIGHT":
+            self._mouse.click(_Mouse.RIGHT_BUTTON)
+        elif btn == "MIDDLE":
+            self._mouse.click(_Mouse.MIDDLE_BUTTON)
+
+    def mouse_down(self, button: str) -> None:
+        """Press and hold a mouse button."""
+        btn = button.upper()
+        if btn == "LEFT":
+            self._mouse.press(_Mouse.LEFT_BUTTON)
+        elif btn == "RIGHT":
+            self._mouse.press(_Mouse.RIGHT_BUTTON)
+        elif btn == "MIDDLE":
+            self._mouse.press(_Mouse.MIDDLE_BUTTON)
+
+    def mouse_up(self, button: str) -> None:
+        """Release a mouse button."""
+        btn = button.upper()
+        if btn == "LEFT":
+            self._mouse.release(_Mouse.LEFT_BUTTON)
+        elif btn == "RIGHT":
+            self._mouse.release(_Mouse.RIGHT_BUTTON)
+        elif btn == "MIDDLE":
+            self._mouse.release(_Mouse.MIDDLE_BUTTON)
+
+    def mouse_scroll(self, amount: int) -> None:
+        """Scroll wheel (positive = down, negative = up)."""
+        self._mouse.move(wheel=amount)
 
     # ── Keyboard Layout ──────────────────────────────────────────────
 

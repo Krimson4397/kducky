@@ -154,6 +154,15 @@ class InjectModStmt(Stmt):
 
 
 @dataclass(frozen=True)
+class InjectVarStmt(Stmt):
+    """Inject a variable's value as keystrokes."""
+
+    __slots__ = ("variable",)
+
+    variable: str
+
+
+@dataclass(frozen=True)
 class HoldStmt(Stmt):
     """Press and hold a key until released."""
 
@@ -389,6 +398,65 @@ class DuckyLangStmt(Stmt):
     __slots__ = ("language",)
 
     language: str
+
+
+@dataclass(frozen=True)
+class RebootStmt(Stmt):
+    """REBOOT — restart the target computer."""
+
+
+@dataclass(frozen=True)
+class ReplayStmt(Stmt):
+    """REPLAY — restart the current payload from the beginning."""
+
+
+@dataclass(frozen=True)
+class JitterStmt(Stmt):
+    """JITTER ON|OFF|DELAY min max — random keystroke delays."""
+
+    __slots__ = ("mode",)
+    __defaults__ = {"min_delay": 0, "max_delay": 0}
+
+    mode: str  # "on", "off", "delay"
+    min_delay: int = 0
+    max_delay: int = 0
+
+
+# ── Mouse ──────────────────────────────────────────────────────────
+
+
+@unique
+@enum
+class MouseAction:
+    """Mouse operation types."""
+    MOVE = auto()
+    MOVE_TO = auto()
+    CLICK = auto()
+    DOWN = auto()
+    UP = auto()
+    SCROLL = auto()
+
+
+@unique
+@enum
+class MouseButton:
+    """Mouse button identifiers."""
+    LEFT = auto()
+    RIGHT = auto()
+    MIDDLE = auto()
+
+
+@dataclass(frozen=True)
+class MouseStmt(Stmt):
+    """Mouse operation (move, click, scroll, etc.)."""
+    __slots__ = ("action",)
+    __defaults__ = {"button": None, "x": None, "y": None, "scroll_amount": None}
+
+    action: MouseAction
+    button: MouseButton | None = None
+    x: int | None = None
+    y: int | None = None
+    scroll_amount: int | None = None
 
 
 # ── Combo ───────────────────────────────────────────────────────────

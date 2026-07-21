@@ -151,11 +151,36 @@ class DesktopPlatform:
     def restore_payload(self) -> None:
         self._record("restore_payload")
 
+    # ── Reboot ────────────────────────────────────────────────────────
+
+    def reboot_target(self) -> None:
+        self._record("reboot_target")
+
     # ── Random ────────────────────────────────────────────────────────
 
     def random_int(self, min_val: int, max_val: int) -> int:
         self._record("random_int", min_val, max_val)
         return _random.randint(min_val, max_val)
+
+    # ── Mouse ───────────────────────────────────────────────────────────
+
+    def mouse_move(self, x: int, y: int) -> None:
+        self._record("mouse_move", x, y)
+
+    def mouse_move_to(self, x: int, y: int) -> None:
+        self._record("mouse_move_to", x, y)
+
+    def mouse_click(self, button: str) -> None:
+        self._record("mouse_click", button)
+
+    def mouse_down(self, button: str) -> None:
+        self._record("mouse_down", button)
+
+    def mouse_up(self, button: str) -> None:
+        self._record("mouse_up", button)
+
+    def mouse_scroll(self, amount: int) -> None:
+        self._record("mouse_scroll", amount)
 
     # ── Keyboard Layout ────────────────────────────────────────────────
 

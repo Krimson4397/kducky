@@ -153,10 +153,42 @@ class PlatformInterface(Protocol):
         """Restore a previously hidden payload file to visibility."""
         ...
 
+    # ── Reboot ───────────────────────────────────────────────────────
+
+    def reboot_target(self) -> None:
+        """Reboot the target computer (e.g., GUI r -> shutdown /r /t 0)."""
+        ...
+
     # ── Random ────────────────────────────────────────────────────────
 
     def random_int(self, min_val: int, max_val: int) -> int:
         """Return a random integer in [*min_val*, *max_val*] (inclusive)."""
+        ...
+
+    # ── Mouse ────────────────────────────────────────────────────────
+
+    def mouse_move(self, x: int, y: int) -> None:
+        """Move mouse (relative)."""
+        ...
+
+    def mouse_move_to(self, x: int, y: int) -> None:
+        """Move mouse to absolute position (no-op on HID-only platforms)."""
+        ...
+
+    def mouse_click(self, button: str) -> None:
+        """Click a mouse button ('LEFT', 'RIGHT', 'MIDDLE')."""
+        ...
+
+    def mouse_down(self, button: str) -> None:
+        """Press and hold a mouse button."""
+        ...
+
+    def mouse_up(self, button: str) -> None:
+        """Release a mouse button."""
+        ...
+
+    def mouse_scroll(self, amount: int) -> None:
+        """Scroll wheel (positive = scroll down, negative = scroll up)."""
         ...
 
     # ── Keyboard Layout ──────────────────────────────────────────────

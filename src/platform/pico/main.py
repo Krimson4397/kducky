@@ -34,8 +34,19 @@ _LED_BLINK: float = 0.5  # seconds between LED blinks during startup
 
 
 def main() -> None:
-    """Load and execute ``/payload.dd`` on the Pico."""
+    """Load and execute ``/payload.dd`` on the Pico, supporting REPLAY."""
     _runtime.autoreload = False
+    while True:
+        try:
+            _run_once()
+        except RestartPayloadSignal:
+            print("[pico] payload replay requested")
+            continue
+        break
+
+
+def _run_once() -> None:
+    """Execute one run of the payload."""
     print("[pico] creating platform...")
     platform = PicoPlatform()
 
@@ -95,8 +106,10 @@ def main() -> None:
         print("[pico] interpret OK — payload complete")
     except StopPayloadSignal:
         print("[pico] payload stopped (STOP_PAYLOAD)")
+        return
     except RestartPayloadSignal:
         print("[pico] payload restart requested (RESTART_PAYLOAD)")
+        raise
     except Exception as e:
         print("[pico] ERROR during interpretation")
         _print_exc(e)

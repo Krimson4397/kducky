@@ -37,16 +37,23 @@ from ducky.ast import (  # noqa: E402
     IdentifierStmt,
     IfStmt,
     InjectModStmt,
+    InjectVarStmt,
     IntegerExpr,
+    JitterStmt,
     KeyStmt,
     LedState,
     LedStmt,
     LockKeyState,
     LockKeyType,
+    MouseAction,
+    MouseButton,
+    MouseStmt,
     RandomStmt,
     RandomType,
+    RebootStmt,
     ReleaseStmt,
     RepeatStmt,
+    ReplayStmt,
     ResetStmt,
     RestartPayloadStmt,
     RestoreAttackModeStmt,
@@ -410,6 +417,27 @@ class DuckyParser:
         if token.type == TokenType.STOP_PAYLOAD:
             return self._parse_stop_payload_stmt()
 
+        # ── D3 extensions ──
+        if token.type == TokenType.REBOOT:
+            return self._parse_reboot_stmt()
+        if token.type == TokenType.REPLAY:
+            return self._parse_replay_stmt()
+        if token.type == TokenType.JITTER:
+            return self._parse_jitter_stmt()
+        if token.type == TokenType.INJECT_VAR:
+            return self._parse_inject_var_stmt()
+
+        # ── Mouse ──
+        if token.type in (
+            TokenType.MOUSE_MOVE,
+            TokenType.MOUSE_MOVE_TO,
+            TokenType.MOUSE_CLICK,
+            TokenType.MOUSE_DOWN,
+            TokenType.MOUSE_UP,
+            TokenType.MOUSE_SCROLL,
+        ):
+            return self._parse_mouse_stmt()
+
         # ── Random ──
         if token.type in _TOKEN_TO_RANDOM_TYPE:
             return self._parse_random_stmt()
@@ -590,6 +618,18 @@ class DuckyParser:
         self._previous_stmt_was_block_end = False
         return InjectModStmt()
 
+    def _parse_inject_var_stmt(self) -> InjectVarStmt:
+        """INJECT_VAR $name"""
+        self._consume(TokenType.INJECT_VAR, "Expected INJECT_VAR")
+        name_token = self._consume(
+            TokenType.DOLLAR_IDENTIFIER,
+            "Expected $identifier after INJECT_VAR",
+        )
+        name = name_token.value
+        self._consume_newline()
+        self._previous_stmt_was_block_end = False
+        return InjectVarStmt(variable=name)
+
     def _parse_hold_stmt(self) -> HoldStmt:
         self._consume(TokenType.HOLD, "Expected HOLD")
         key_token = self._advance()
@@ -664,6 +704,55 @@ class DuckyParser:
         self._consume_newline()
         self._previous_stmt_was_block_end = False
         return StopPayloadStmt()
+
+    # ── D3 extensions ────────────────────────────────────────────────────────
+
+    def _parse_reboot_stmt(self) -> RebootStmt:
+        self._consume(TokenType.REBOOT, "Expected REBOOT")
+        self._consume_newline()
+        self._previous_stmt_was_block_end = False
+        return RebootStmt()
+
+    def _parse_replay_stmt(self) -> ReplayStmt:
+        self._consume(TokenType.REPLAY, "Expected REPLAY")
+        self._consume_newline()
+        self._previous_stmt_was_block_end = False
+        return ReplayStmt()
+
+    def _parse_jitter_stmt(self) -> JitterStmt:
+        self._consume(TokenType.JITTER, "Expected JITTER")
+        if self._peek().type == TokenType.ON:
+            self._advance()
+            self._consume_newline()
+            self._previous_stmt_was_block_end = False
+            return JitterStmt(mode="on")
+        elif self._peek().type == TokenType.OFF:
+            self._advance()
+            self._consume_newline()
+            self._previous_stmt_was_block_end = False
+            return JitterStmt(mode="off")
+        elif self._peek().type == TokenType.DELAY:
+            self._advance()  # consume DELAY
+            min_tok = self._consume(
+                TokenType.INTEGER, "Expected integer for JITTER min delay"
+            )
+            max_tok = self._consume(
+                TokenType.INTEGER, "Expected integer for JITTER max delay"
+            )
+            self._consume_newline()
+            self._previous_stmt_was_block_end = False
+            return JitterStmt(
+                mode="delay",
+                min_delay=int(min_tok.value),
+                max_delay=int(max_tok.value),
+            )
+        else:
+            token = self._peek()
+            raise ParseError(
+                "Expected ON, OFF, or DELAY after JITTER",
+                token.line,
+                token.column,
+            )
 
     # ── Variable statements ──────────────────────────────────────────────────
 
@@ -967,6 +1056,80 @@ class DuckyParser:
         self._consume_newline()
         self._previous_stmt_was_block_end = False
         return DuckyLangStmt(language=lang)
+
+    # ── Mouse ────────────────────────────────────────────────────────────────
+
+    def _parse_mouse_stmt(self) -> MouseStmt:
+        """Parse MOUSE_MOVE, MOUSE_MOVE_TO, MOUSE_CLICK, MOUSE_DOWN, MOUSE_UP, MOUSE_SCROLL."""
+        token = self._peek()
+        self._advance()  # consume the MOUSE_* keyword
+
+        if token.type == TokenType.MOUSE_MOVE:
+            x = self._parse_signed_int()
+            y = self._parse_signed_int()
+            self._consume_newline()
+            self._previous_stmt_was_block_end = False
+            return MouseStmt(action=MouseAction.MOVE, x=x, y=y)
+
+        elif token.type == TokenType.MOUSE_MOVE_TO:
+            x = self._parse_signed_int()
+            y = self._parse_signed_int()
+            self._consume_newline()
+            self._previous_stmt_was_block_end = False
+            return MouseStmt(action=MouseAction.MOVE_TO, x=x, y=y)
+
+        elif token.type == TokenType.MOUSE_CLICK:
+            button = self._parse_mouse_button()
+            self._consume_newline()
+            self._previous_stmt_was_block_end = False
+            return MouseStmt(action=MouseAction.CLICK, button=button)
+
+        elif token.type == TokenType.MOUSE_DOWN:
+            button = self._parse_mouse_button()
+            self._consume_newline()
+            self._previous_stmt_was_block_end = False
+            return MouseStmt(action=MouseAction.DOWN, button=button)
+
+        elif token.type == TokenType.MOUSE_UP:
+            button = self._parse_mouse_button()
+            self._consume_newline()
+            self._previous_stmt_was_block_end = False
+            return MouseStmt(action=MouseAction.UP, button=button)
+
+        elif token.type == TokenType.MOUSE_SCROLL:
+            amount = self._parse_signed_int()
+            self._consume_newline()
+            self._previous_stmt_was_block_end = False
+            return MouseStmt(action=MouseAction.SCROLL, scroll_amount=amount)
+
+        raise ParseError("Unexpected MOUSE variant", token.line, token.column)
+
+    def _parse_mouse_button(self) -> MouseButton:
+        """Parse LEFT, RIGHT, or MIDDLE mouse button."""
+        token = self._peek()
+        if token.type == TokenType.LEFT:
+            self._advance()
+            return MouseButton.LEFT
+        elif token.type == TokenType.RIGHT:
+            self._advance()
+            return MouseButton.RIGHT
+        elif token.type == TokenType.IDENTIFIER and token.value.upper() == "MIDDLE":
+            self._advance()
+            return MouseButton.MIDDLE
+        raise ParseError(
+            f"Expected mouse button (LEFT/RIGHT/MIDDLE), got {token.type.name}",
+            token.line,
+            token.column,
+        )
+
+    def _parse_signed_int(self) -> int:
+        """Parse an integer that may be prefixed with ``-``."""
+        negative = False
+        if self._match(TokenType.MINUS):
+            negative = True
+        token = self._consume(TokenType.INTEGER, "Expected integer")
+        value = int(token.value)
+        return -value if negative else value
 
     # ── Extension ────────────────────────────────────────────────────────────
 

@@ -30,15 +30,21 @@ from ducky.ast import (  # noqa: E402
     IdentifierStmt,
     IfStmt,
     InjectModStmt,
+    InjectVarStmt,
     IntegerExpr,
+    JitterStmt,
     KeyStmt,
     LedStmt,
     LockKeyState,
     LockKeyType,
+    MouseAction,
+    MouseStmt,
     RandomStmt,
     RandomType,
+    RebootStmt,
     ReleaseStmt,
     RepeatStmt,
+    ReplayStmt,
     ResetStmt,
     RestartPayloadStmt,
     RestoreAttackModeStmt,
@@ -60,7 +66,7 @@ from ducky.ast import (  # noqa: E402
     WhileStmt,
 )
 from ducky.errors import InterpreterError  # noqa: E402
-from ducky.platform import PlatformInterface  # noqa: E402
+from ducky.platform import PlatformInterface, RestartPayloadSignal  # noqa: E402
 from ducky.tokens import ActionKey, Operator  # noqa: E402
 from ducky.utils.visitor import NodeVisitor  # noqa: E402
 
@@ -95,10 +101,28 @@ class Interpreter(NodeVisitor):
         self._loop_depth: int = 0
         self._extensions: dict[str, tuple[Stmt, ...]] = {}
         self._button_handlers: dict[str, tuple[Stmt, ...]] = {}
+        self._jitter_enabled: bool = False
+        self._jitter_min: int = 0
+        self._jitter_max: int = 0
+        self._inject_var_pending: bool = False
+        self._populate_internal_vars()
 
     def interpret(self, script: Script) -> None:
         """Execute a parsed Script against the platform."""
         self.visit(script)
+
+    # ── Internal ($_) variables ───────────────────────────────────────
+
+    def _populate_internal_vars(self) -> None:
+        """Pre-populate $_ internal variables into global scope."""
+        self._globals["_IS_CAPSLOCK_ON"] = 1 if self.platform.get_caps_lock() else 0
+        self._globals["_IS_NUMLOCK_ON"] = 1 if self.platform.get_num_lock() else 0
+        self._globals["_IS_SCROLLLOCK_ON"] = 1 if self.platform.get_scroll_lock() else 0
+        self._globals["_RANDOM_MIN"] = 0
+        self._globals["_RANDOM_MAX"] = 65535
+        self._globals["_RANDOM_INT"] = 0
+        self._globals["_BUTTON_ENABLED"] = 1
+        # ponytail: $_ vars preserved; if CLEAR added later, skip keys prefixed with "_"
 
     # ── Script (top-level) ─────────────────────────────────────────────
 
@@ -195,17 +219,41 @@ class Interpreter(NodeVisitor):
 
     _KEYBOARD_STMTS: tuple[type[Stmt], ...] = (
         StringStmt, StringLnStmt, KeyStmt, ComboStmt,
-        HoldStmt, ReleaseStmt, InjectModStmt, RandomStmt,
+        HoldStmt, ReleaseStmt, InjectModStmt, InjectVarStmt,
+        RandomStmt,
     )
 
     def _type_text(self, text: str) -> None:
-        """Type text, respecting _default_char_delay."""
+        """Type text, respecting _default_char_delay, jitter, and newlines (block mode)."""
+        if "\n" in text:
+            # Block mode — text contains newlines from STRINGLN block
+            parts = text.split("\n")
+            for i, part in enumerate(parts):
+                if part:
+                    self._type_text(part)
+                if i < len(parts) - 1:
+                    self.platform.press_key((), ActionKey.ENTER)
+            return
+
         if self._default_char_delay > 0:
             for ch in text:
+                self._maybe_jitter()
                 self.platform.type_string(ch)
                 self.platform.delay_ms(self._default_char_delay)
+        elif self._jitter_enabled:
+            for ch in text:
+                self._maybe_jitter()
+                self.platform.type_string(ch)
         else:
             self.platform.type_string(text)
+
+    def _maybe_jitter(self) -> None:
+        """Apply random delay if JITTER is enabled."""
+        if self._jitter_enabled:
+            import random
+
+            delay = random.randint(self._jitter_min, self._jitter_max)
+            self.platform.delay_ms(delay)
 
     def visit_StringStmt(self, node: StringStmt) -> None:
         self._type_text(node.text)
@@ -228,6 +276,24 @@ class Interpreter(NodeVisitor):
 
     def visit_InjectModStmt(self, node: InjectModStmt) -> None:
         self.platform.release_all()
+
+    def visit_InjectVarStmt(self, node: InjectVarStmt) -> None:
+        """INJECT_VAR $name — type the variable's value as keystrokes."""
+        name = node.variable
+        # Check local scopes top-down (innermost first)
+        value = None
+        for scope in reversed(self._locals):
+            if name in scope:
+                value = scope[name]
+                break
+        if value is None:
+            if name not in self._globals:
+                raise InterpreterError(
+                    f"Undefined variable '{name}' in INJECT_VAR"
+                )
+            value = self._globals[name]
+        text = str(value)
+        self._type_text(text)
 
     def visit_RandomStmt(self, node: RandomStmt) -> None:
         rtype = node.random_type
@@ -317,6 +383,45 @@ class Interpreter(NodeVisitor):
 
     def visit_RestartPayloadStmt(self, node: RestartPayloadStmt) -> None:
         self.platform.restart_payload()
+
+    # ── D3 extensions ────────────────────────────────────────────────
+
+    def visit_RebootStmt(self, node: RebootStmt) -> None:
+        """Reboot the target computer."""
+        self.platform.reboot_target()
+
+    def visit_ReplayStmt(self, node: ReplayStmt) -> None:
+        """Restart the current payload from the beginning."""
+        raise RestartPayloadSignal()
+
+    def visit_JitterStmt(self, node: JitterStmt) -> None:
+        """Configure random keystroke delays."""
+        if node.mode == "on":
+            self._jitter_enabled = True
+        elif node.mode == "off":
+            self._jitter_enabled = False
+        elif node.mode == "delay":
+            self._jitter_min = node.min_delay
+            self._jitter_max = node.max_delay
+            self._jitter_enabled = True
+
+    # ── Mouse ─────────────────────────────────────────────────────────
+
+    def visit_MouseStmt(self, node: MouseStmt) -> None:
+        """Execute MOUSE_* statement."""
+        action = node.action
+        if action == MouseAction.MOVE:
+            self.platform.mouse_move(node.x, node.y)
+        elif action == MouseAction.MOVE_TO:
+            self.platform.mouse_move_to(node.x, node.y)
+        elif action == MouseAction.CLICK:
+            self.platform.mouse_click(node.button.name)
+        elif action == MouseAction.DOWN:
+            self.platform.mouse_down(node.button.name)
+        elif action == MouseAction.UP:
+            self.platform.mouse_up(node.button.name)
+        elif action == MouseAction.SCROLL:
+            self.platform.mouse_scroll(node.scroll_amount)
 
     # ── Control flow ──────────────────────────────────────────────────
 

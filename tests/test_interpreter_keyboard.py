@@ -60,6 +60,9 @@ class TestStringStmt:
         interpreter.interpret(script)
         # Expected: type_string("a"), delay_ms(10), type_string("b"), delay_ms(10)
         assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
             ("type_string", "a"),
             ("delay_ms", 10),
             ("type_string", "b"),
@@ -72,7 +75,12 @@ class TestStringStmt:
         interpreter = Interpreter(platform)
         script = Script((StringStmt("hello"),))
         interpreter.interpret(script)
-        assert platform.calls == [("type_string", "hello")]
+        assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
+            ("type_string", "hello"),
+        ]
 
 
 class TestStringLnStmt:
@@ -85,6 +93,9 @@ class TestStringLnStmt:
         script = Script((StringLnStmt("hello"),))
         interpreter.interpret(script)
         assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
             ("type_string", "hello"),
             ("press_key", (), ActionKey.ENTER),
         ]
@@ -100,6 +111,9 @@ class TestStringLnStmt:
         interpreter.interpret(script)
         # Expected: per-char type+delay then press_key((), ENTER)
         assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
             ("type_string", "a"),
             ("delay_ms", 10),
             ("type_string", "b"),
@@ -117,7 +131,12 @@ class TestKeyStmt:
         interpreter = Interpreter(platform)
         script = Script((KeyStmt(ActionKey.ENTER),))
         interpreter.interpret(script)
-        assert platform.calls == [("press_key", (), ActionKey.ENTER)]
+        assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
+            ("press_key", (), ActionKey.ENTER),
+        ]
 
     def test_key_press_function_key(self) -> None:
         """KeyStmt(F1) presses F1."""
@@ -125,7 +144,12 @@ class TestKeyStmt:
         interpreter = Interpreter(platform)
         script = Script((KeyStmt(ActionKey.F1),))
         interpreter.interpret(script)
-        assert platform.calls == [("press_key", (), ActionKey.F1)]
+        assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
+            ("press_key", (), ActionKey.F1),
+        ]
 
 
 class TestComboStmt:
@@ -140,6 +164,9 @@ class TestComboStmt:
         ))
         interpreter.interpret(script)
         assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
             ("press_key", (ModifierKey.CTRL, ModifierKey.SHIFT), ActionKey.ESC),
         ]
 
@@ -149,7 +176,12 @@ class TestComboStmt:
         interpreter = Interpreter(platform)
         script = Script((ComboStmt((ModifierKey.GUI,), None),))
         interpreter.interpret(script)
-        assert platform.calls == [("press_key", (ModifierKey.GUI,), None)]
+        assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
+            ("press_key", (ModifierKey.GUI,), None),
+        ]
 
     def test_combo_single_modifier(self) -> None:
         """CTRL ENTER presses CTRL + ENTER."""
@@ -160,6 +192,9 @@ class TestComboStmt:
         ))
         interpreter.interpret(script)
         assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
             ("press_key", (ModifierKey.CTRL,), ActionKey.ENTER),
         ]
 
@@ -177,6 +212,9 @@ class TestHoldRelease:
         ))
         interpreter.interpret(script)
         assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
             ("hold_key", ActionKey.ENTER),
             ("release_key", ActionKey.ENTER),
         ]
@@ -370,6 +408,9 @@ class TestCallOrder:
         ))
         interpreter.interpret(script)
         expected = [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
             ("type_string", "hello"),
             ("press_key", (), ActionKey.ENTER),
             ("press_key", (ModifierKey.CTRL,), ActionKey.ENTER),
