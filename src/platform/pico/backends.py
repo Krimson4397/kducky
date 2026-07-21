@@ -403,16 +403,24 @@ class PicoPlatform:
     # ── Lock keys ────────────────────────────────────────────────────
 
     def get_caps_lock(self) -> bool:
-        """Return the current Caps Lock state (from USB LED report)."""
-        return bool(self._hid_keyboard.led_state & _LED_CAPS)
+        # ponytail: USB HID cannot read host LED state on CircuitPython.
+        # Returns False (unknown) on any error.
+        try:
+            return bool(self._hid_keyboard.led_state & _LED_CAPS)
+        except AttributeError:
+            return False
 
     def get_num_lock(self) -> bool:
-        """Return the current Num Lock state (from USB LED report)."""
-        return bool(self._hid_keyboard.led_state & _LED_NUM)
+        try:
+            return bool(self._hid_keyboard.led_state & _LED_NUM)
+        except AttributeError:
+            return False
 
     def get_scroll_lock(self) -> bool:
-        """Return the current Scroll Lock state (from USB LED report)."""
-        return bool(self._hid_keyboard.led_state & _LED_SCROLL)
+        try:
+            return bool(self._hid_keyboard.led_state & _LED_SCROLL)
+        except AttributeError:
+            return False
 
     def save_lock_state(self) -> None:
         """Save the current host lock key state."""
