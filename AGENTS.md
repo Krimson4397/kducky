@@ -155,12 +155,12 @@ This section **must** be updated at the completion of every milestone. It descri
 
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
-| Project Version       | 0.2.0 (alpha)                    |
-| Completed Milestone   | M18 — Complete Interpreter       |
+| Project Version       | 1.0.0                            |
+| Completed Milestone   | M19+M20 — Hardware Validation + Release |
 | Current Branch        | main                             |
-| Last Commit           | 25e4249                          |
+| Last Commit           | 4bb85d2                          |
 | Repository Status     | Clean working tree                 |
-| Next Milestone        | M19 — Hardware Validation (Pico) |
+| Next Milestone        | README Roadmap — Tier 1 features |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval)     |
 
@@ -270,6 +270,18 @@ This section **must** be updated at the completion of every milestone. It descri
 - [x] Phase A: 103 edge-case tests (error recovery, nested functions, recursion, nested loops, variable shadowing, overflow, REPEAT corners, function registration)
 - [x] **Full suite: 784 tests pass, ruff clean, working tree clean**
 
+## 9. Next Session — What to Build
+
+Refer to `README.md` → **Roadmap — Next Features** section for the full prioritized list.
+
+**Start with Tier 1: Easy / Well-Understood:**
+- `EXFIL` (LED encoding) — pico-ducky pattern, no WiFi needed
+- `RANDOM_LINE` — built-in `os` + `random`
+- `RANDOM_STRING` — built-in `random`
+- `F13`–`F24` — keycode map additions
+- Extended media keys — keycode map additions
+- `JIGGLER` — MOUSE_MOVE loop or new command
+
 ### Remaining Milestones
 
 Milestones 19–20 from the implementation roadmap.
@@ -322,7 +334,7 @@ Next milestone: M19 — Hardware Validation (Pico). Run the interpreter on actua
 
 ---
 
-## 9. Continuation Prompt
+## 10. Continuation Prompt
 
 ```
 Continue development of the kducky project.
@@ -340,13 +352,13 @@ Wait for approval before beginning the next milestone.
 
 ---
 
-## 10. Updating AGENTS.md
+## 11. Updating AGENTS.md
 
 At the end of every milestone, the AI agent **must**:
 
 1. Update the Session Handoff (§8) — all subsections.
 2. Update the Handoff Summary table.
-3. Update the Continuation Prompt (§9).
+3. Update the Continuation Prompt (§10).
 4. Save `AGENTS.md`.
 5. Inform the user that `AGENTS.md` has been updated.
 6. Wait for user approval before beginning the next milestone.
