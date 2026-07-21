@@ -74,27 +74,30 @@ production). The language core never imports CircuitPython.
 
 ---
 
-## Not Yet Implemented
+## Roadmap — Next Features
 
-Official DuckyScript 3 features:
+Features we plan to implement, ranked by feasibility. This section guides the next development session.
 
-| Feature | Notes |
-|---------|-------|
-| `RANDOM_LINE` | Read random lines from files |
-| `RANDOM_STRING` | Random string generation |
-| Embedded language blocks | `STRING_POWERSHELL`, `STRING_BATCH`, `STRING_BASH`, `STRING_JAVASCRIPT`, `STRING_PYTHON`, `STRING_RUBY`, `STRING_HTML` |
-| `KEYCODE` | Raw HID injection (O.MG-specific) |
-| `JIGGLER` | Mouse jiggler (O.MG-specific) |
-| `F13`–`F24` | Extended function keys |
-| Extended media keys | Beyond the basic set |
+### Tier 1: Easy / Well-Understood
+| Feature | Notes | Approach |
+|---------|-------|----------|
+| `EXFIL` (LED encoding) | Exfiltrate data via Caps Lock/Num Lock LED states | Encode bits via keyboard LED state toggling, read back from HID reports, store in loot.bin. No WiFi needed. Pattern from pico-ducky. |
+| `RANDOM_LINE` | Read a random line from a file | Built-in `os.listdir()` + `open()` + `random.choice()`. Filesystem access available. |
+| `RANDOM_STRING` | Generate random printable strings | Built-in `random` module. Configurable length and character set. |
+| `F13`–`F24` | Extended function keys | Standard USB HID usage IDs — add to keycode maps in PicoPlatform backend. |
+| Extended media keys | Beyond basic set | Standard USB HID consumer page codes — update keycode maps. |
+| `JIGGLER` | Periodic mouse movement | Simple DuckyScript loop with MOUSE_MOVE, or a new language command. |
 
-Infrastructure:
+### Tier 2: Moderate Effort
+| Feature | Notes | Approach |
+|---------|-------|----------|
+| `EXFIL` (WiFi) | Exfiltrate data via HTTP POST | Use built-in `wifi` + `socketpool` + `ssl` (zero deps) or `adafruit_requests` + `adafruit_connection_manager` (~40KB from Adafruit Bundle). Needs WiFi credentials. |
+| Embedded language blocks | `STRING_POWERSHELL`, `STRING_BATCH`, `STRING_BASH`, `STRING_JAVASCRIPT`, `STRING_PYTHON`, `STRING_RUBY`, `STRING_HTML` | Preprocessor-like transform on string content before typing. Language-specific escaping and newline conventions. |
 
-| Item | Notes |
-|------|-------|
-| `ducky-run` CLI | Desktop entry point |
-| CI pipeline | GitHub Actions for ruff, mypy, pytest |
-| `CONTRIBUTING.md` | Contribution guide |
+### Tier 3: Not Feasible (CircuitPython Constraints)
+| Feature | Notes | Why |
+|---------|-------|-----|
+| `KEYCODE` | Raw HID report injection | O.MG-specific. Requires low-level USB descriptor manipulation. CircuitPython's `adafruit_hid` doesn't expose raw HID reports. Not feasible without firmware-level changes. |
 
 ---
 
