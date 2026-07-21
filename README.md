@@ -3,7 +3,24 @@
 DuckyScript 3 Interpreter for **Raspberry Pi Pico 2 W** (RP2350) · CircuitPython 10.x
 
 Run USB Rubber Ducky payloads from a $6 microcontroller that appears as a
-keyboard to any computer.
+keyboard to any computer. All D3 core commands are implemented, with desktop
+testing and hardware validation on Pico.
+
+---
+
+## Architecture
+
+```
+Source → Preprocessor → Lexer → Parser → AST → Interpreter → PlatformInterface
+                                                                ↙         ↘
+                                                     DesktopPlatform  PicoPlatform
+```
+
+Language modules (preprocessor, lexer, parser, AST, interpreter) are fully
+decoupled from hardware. A `PlatformInterface` protocol abstracts all I/O —
+keyboard, mouse, LED, buttons, attack mode — so the same interpreter runs on
+desktop CPython (for development and testing) and on CircuitPython (for Pico
+production). The language core never imports CircuitPython.
 
 ---
 
@@ -29,30 +46,55 @@ keyboard to any computer.
 
 | Category | Commands |
 |----------|----------|
-| **Typing** | `STRING`, `STRINGLN`, `DELAY`, `DEFAULT_DELAY`, `DEFAULT_CHAR_DELAY` |
+| **Typing** | `STRING`, `STRINGLN`, `DELAY`, `DEFAULT_DELAY`, `DEFAULT_CHAR_DELAY`, `STRINGDELAY` |
 | **Modifier combos** | `GUI`, `CTRL`, `SHIFT`, `ALT` + any key (e.g. `GUI r`, `CTRL ALT DEL`) |
 | **Hold / Release** | `HOLD`, `RELEASE`, `INJECT_MOD` |
-| **Variables** | `VAR $x = 5`, `$x = $x + 1` |
-| **Functions** | `FUNCTION`, `CALL`, `RETURN` |
-| **Control flow** | `IF`, `WHILE`, `BREAK`, `CONTINUE` |
-| **Keyboard layouts** | `DUCKY_LANG DE` — 16 layouts (US, GB, DE, FR, ES, IT, JP, DK, NO, SE, FI, PT, BR, RU, PL, CZ) |
+| **Control flow** | `IF` / `ELSE` / `END_IF`, `WHILE` / `END_WHILE`, `BREAK`, `CONTINUE`, `REPEAT` |
+| **Functions** | `FUNCTION` / `END_FUNCTION`, `CALL`, `RETURN` |
+| **Variables** | `VAR $x = 5`, `$x = $x + 1`, full expression support |
+| **Arithmetic** | `+`, `-`, `*`, `/`, `%`, `&`, `\|`, comparisons, parentheses |
 | **Random** | `RANDOM_MIN_MAX`, `RANDOM_CHAR` |
-| **Arithmetic** | Full expression support (`+`, `-`, `*`, `/`, `%`, `&`, `|`, comparisons, etc.) |
 | **Comments** | `REM` |
-<!-- table not formatted: invalid structure -->
+| **Preprocessor** | `DEFINE #NAME value`, `#NAME` substitution (skipped inside quotes) |
+| **Keyboard layouts** | `DUCKY_LANG DE` — 16 layouts (US, GB, DE, FR, ES, IT, JP, DK, NO, SE, FI, PT, BR, RU, PL, CZ) |
+| **Reboot** | `REBOOT` — GUI r → shutdown /r /t 0 |
+| **Replay** | `REPLAY` — restart payload from beginning |
+| **Jitter** | `JITTER ON` / `OFF` / `DELAY min max` |
+| **Inject Var** | `INJECT_VAR $name` — type variable value as keystrokes |
+| **Internal vars** | `$_IS_CAPSLOCK_ON`, `$_IS_NUMLOCK_ON`, `$_IS_SCROLLLOCK_ON`, `$_RANDOM_MIN`, `$_RANDOM_MAX`, `$_RANDOM_INT`, `$_BUTTON_ENABLED` |
+| **Block strings** | `STRING` / `STRINGLN` block mode with `END_STRING` / `END_STRINGLN` |
+| **Mouse** | `MOUSE_MOVE`, `MOUSE_MOVE_TO`, `MOUSE_CLICK`, `MOUSE_DOWN`, `MOUSE_UP`, `MOUSE_SCROLL` (LEFT / RIGHT / MIDDLE) |
+| **LED** | `LED OFF` / `R` / `G` / `B` |
+| **Attack mode** | `ATTACKMODE`, `SAVE_ATTACKMODE`, `RESTORE_ATTACKMODE` |
+| **Lock keys** | `SAVE_HOST_LOCK_STATE`, `RESTORE_HOST_LOCK_STATE`, `WAIT_FOR_KEY` |
+| **Buttons** | `BUTTON_DEF`, `ENABLE_BUTTON`, `DISABLE_BUTTON`, `WAIT_FOR_BUTTON_PRESS` |
+| **Payload control** | `HIDE_PAYLOAD`, `RESTORE_PAYLOAD` |
+| **Error hierarchy** | `LexerError`, `ParseError`, `InterpreterError`, `PreprocessorError` — all with standard format `[ERROR] line N: message` |
+| **Desktop mock** | Full `PlatformInterface` implementation for testing on any Python 3.10+ without hardware |
 
-## Planned / Not Yet Implemented
+---
 
-| Command | Status |
-|---------|--------|
-| `REPEAT` | Parsed, no runtime yet |
-| `DEFINE` (preprocessor) | Next milestone |
-| `ATTACKMODE` | Planned (M18) |
-| `LED` control | Planned (M18) |
-| Button handling | Planned (M18) |
-| `WAIT_FOR_KEY` | Planned (M18) |
-| Error reporting | Planned (M17) |
-<!-- table not formatted: invalid structure -->
+## Not Yet Implemented
+
+Official DuckyScript 3 features:
+
+| Feature | Notes |
+|---------|-------|
+| `RANDOM_LINE` | Read random lines from files |
+| `RANDOM_STRING` | Random string generation |
+| Embedded language blocks | `STRING_POWERSHELL`, `STRING_BATCH`, `STRING_BASH`, `STRING_JAVASCRIPT`, `STRING_PYTHON`, `STRING_RUBY`, `STRING_HTML` |
+| `KEYCODE` | Raw HID injection (O.MG-specific) |
+| `JIGGLER` | Mouse jiggler (O.MG-specific) |
+| `F13`–`F24` | Extended function keys |
+| Extended media keys | Beyond the basic set |
+
+Infrastructure:
+
+| Item | Notes |
+|------|-------|
+| `ducky-run` CLI | Desktop entry point |
+| CI pipeline | GitHub Actions for ruff, mypy, pytest |
+| `CONTRIBUTING.md` | Contribution guide |
 
 ---
 
@@ -60,20 +102,23 @@ keyboard to any computer.
 
 ```bash
 pip install -e ".[dev]"
-pytest              # 558 tests, all passing
+pytest              # 784 tests, all passing
 ruff check src/ tests/
 mypy src/ tests/
 ```
 
 The interpreter runs on **any Python 3.10+** machine for development. A desktop
-platform backend simulates keyboard output so you can test payloads without a
-Pico.
+platform backend (`DesktopPlatform`) simulates all HID operations so you can
+test and debug payloads without a Pico. The full test suite runs in seconds.
 
 ---
 
 ## Project Status
 
-**~95% of DuckyScript 1** (original Hak5) and **~60% of DuckyScript 3** (full
-spec with variables, functions, control flow, layouts) is implemented. See
+**~95% of DuckyScript 3** (core spec plus project extensions) is implemented.
+The interpreter passes 784 tests and is clean under ruff and mypy. Hardware
+validation has been completed on Raspberry Pi Pico 2 W.
+
+See
 [`plans/DuckyScript3_Implementation_Roadmap.md`](plans/DuckyScript3_Implementation_Roadmap.md)
-for the remaining milestones.
+for the remaining milestones (HW validation documentation, CLI, CI).
