@@ -200,3 +200,9 @@ class PlatformInterface(Protocol):
     def get_layout(self) -> str:
         """Return the current keyboard layout code."""
         ...
+
+    # ── Lifecycle ──────────────────────────────────────────────────────
+
+    def deinit(self) -> None:
+        """Release hardware resources before shutdown or REPLAY restart."""
+        ...

@@ -38,17 +38,22 @@ def main() -> None:
     _runtime.autoreload = False
     while True:
         try:
-            _run_once()
+            platform = PicoPlatform()
+            _run_once(platform)
+            break  # normal exit
         except RestartPayloadSignal:
             print("[pico] payload replay requested")
+            platform.deinit()
             continue
-        break
+        except StopPayloadSignal:
+            print("[pico] payload stop requested")
+            platform.deinit()
+            break
 
 
-def _run_once() -> None:
+def _run_once(platform: PicoPlatform) -> None:
     """Execute one run of the payload."""
     print("[pico] creating platform...")
-    platform = PicoPlatform()
 
     # Green while starting
     print("[pico] LED green — startup")

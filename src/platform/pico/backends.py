@@ -256,6 +256,17 @@ class PicoPlatform:
         self._saved_scroll: bool = False
         self._saved_attack_mode: tuple[str, ...] | None = None
 
+    def deinit(self) -> None:
+        """Release hardware resources (LED, button) for clean REPLAY restarts."""
+        try:
+            self._led.deinit()
+        except Exception:
+            pass
+        try:
+            self._button.deinit()
+        except Exception:
+            pass
+
     # ── Internal helpers ──────────────────────────────────────────────
 
     def _keycode_for(self, key: object) -> int:

@@ -191,3 +191,8 @@ class DesktopPlatform:
     def get_layout(self) -> str:
         self._record("get_layout")
         return self._current_layout
+
+    # ── Lifecycle ────────────────────────────────────────────────────────
+
+    def deinit(self) -> None:
+        self._record("deinit")
