@@ -74,7 +74,7 @@ def _discover_lib_files(repo_root: str) -> list[tuple[str, str]]:
         for fname in filenames:
             if fname.endswith(".pyc"):
                 continue
-            if not (fname.endswith(".py") or fname.endswith(".json") or fname == ".gitkeep"):
+            if not (fname.endswith(".py") or fname.endswith(".mpy") or fname.endswith(".json")):
                 continue
             full = os.path.join(dirpath, fname)
             rel = os.path.relpath(full, lib_root).replace(os.sep, "/")
