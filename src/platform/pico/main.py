@@ -1,129 +1,55 @@
 # ruff: noqa: E402 — sys.path manipulation before imports is intentional
-"""Pico payload runner — entry point for CircuitPython auto-run.
+"""Pico entry point — CircuitPython auto-run.
 
-Place (or symlink) this file as ``main.py`` or ``code.py`` on the Pico's
-CIRCUITPY drive so CircuitPython executes it automatically at power-on.
+Place this file as ``main.py`` or ``code.py`` on the Pico's CIRCUITPY drive.
 """
 
 import sys as _sys
 import traceback as _traceback
 
-
-def _print_exc(e: BaseException) -> None:
-    """Print the given exception's traceback."""
-    _traceback.print_exception(type(e), e, e.__traceback__)
-
 _sys.path.insert(0, "/")
 _sys.path.insert(0, "/lib")
 
-print("[pico] Pico payload runner starting...")
+print("[pico] starting...")
 
-from ducky.ast import LedState  # noqa: I001 — sys.path set above for Pico
-from ducky.interpreter import Interpreter
-from ducky.lexer import DuckyLexer
-from ducky.parser import DuckyParser
-from ducky.preprocessor import Preprocessor
-from ducky.platform import RestartPayloadSignal, StopPayloadSignal
-from platform.pico.backends import PicoPlatform
-from supervisor import runtime as _runtime
+from platform.pico.runtime import Runtime
 
-# ── Constants ──────────────────────────────────────────────────────────
+# ── Global exception handler ────────────────────────────────────────────
 
-_PAYLOAD_PATH: str = "/payload.dd"
-_LED_BLINK: float = 0.5  # seconds between LED blinks during startup
+def _crash_handler(e: BaseException) -> None:
+    """Handle uncaught exception: increment crash counter, log, re-raise."""
+    _traceback.print_exception(type(e), e, e.__traceback__)
+    from platform.pico import crash as _crash
+    from platform.pico import logger as _logger
+    _crash.increment()
+    _crash.set_last_error(f"{type(e).__name__}: {e}")
+    _logger.write_line(f"[pico] uncaught crash: {e}")
+    raise
 
+# ── Main ────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    """Load and execute ``/payload.dd`` on the Pico, supporting REPLAY."""
+    """Initialize Runtime, start subsystems, execute or serve."""
+    from supervisor import runtime as _runtime
     _runtime.autoreload = False
-    while True:
-        try:
-            platform = PicoPlatform()
-            _run_once(platform)
-            break  # normal exit
-        except RestartPayloadSignal:
-            print("[pico] payload replay requested")
-            platform.deinit()
-            continue
-        except StopPayloadSignal:
-            print("[pico] payload stop requested")
-            platform.deinit()
-            break
 
-
-def _run_once(platform: PicoPlatform) -> None:
-    """Execute one run of the payload."""
-    print("[pico] creating platform...")
-
-    # Green while starting
-    print("[pico] LED green — startup")
-    platform.set_led(LedState.G)
-
-    # ── Read payload ──────────────────────────────────────────────
+    rt = Runtime()
     try:
-        print(f"[pico] reading {_PAYLOAD_PATH}...")
-        with open(_PAYLOAD_PATH) as f:
-            source = f.read()
-    except OSError as e:
-        print("[pico] ERROR: no payload file found")
-        _print_exc(e)
-        platform.set_led(LedState.R)
-        return
-
-    # ── Preprocess ────────────────────────────────────────────────
-    try:
-        print("[pico] preprocessing...")
-        source = Preprocessor().preprocess(source)
+        rt.start()
     except Exception as e:
-        print("[pico] ERROR during preprocessing")
-        _print_exc(e)
-        platform.set_led(LedState.R)
-        return
+        _crash_handler(e)
 
-    # ── Lex ───────────────────────────────────────────────────────
     try:
-        print("[pico] lexing...")
-        tokens = DuckyLexer().tokenize(source)
-        print(f"[pico] lex OK — {len(tokens)} tokens")
+        rt.run()
     except Exception as e:
-        print("[pico] ERROR during lexing")
-        _print_exc(e)
-        platform.set_led(LedState.R)
-        return
+        _crash_handler(e)
 
-    # ── Parse ─────────────────────────────────────────────────────
     try:
-        print("[pico] parsing...")
-        parser = DuckyParser(tokens)
-        script = parser.parse()
-        print(f"[pico] parse OK — {len(script.statements)} statements")
-    except Exception as e:
-        print("[pico] ERROR during parsing")
-        _print_exc(e)
-        platform.set_led(LedState.R)
-        return
+        rt.stop()
+    except Exception:
+        pass
 
-    # ── Interpret ─────────────────────────────────────────────────
-    try:
-        print("[pico] interpreting...")
-        interp = Interpreter(platform)
-        interp.interpret(script)
-        print("[pico] interpret OK — payload complete")
-    except StopPayloadSignal:
-        print("[pico] payload stopped (STOP_PAYLOAD)")
-        return
-    except RestartPayloadSignal:
-        print("[pico] payload restart requested (RESTART_PAYLOAD)")
-        raise
-    except Exception as e:
-        print("[pico] ERROR during interpretation")
-        _print_exc(e)
-        platform.set_led(LedState.R)
-        return
-
-    # Success — green LED steady
-    print("[pico] payload finished OK")
-    platform.set_led(LedState.G)
+    print("[pico] done")
 
 
 if __name__ == "__main__":
