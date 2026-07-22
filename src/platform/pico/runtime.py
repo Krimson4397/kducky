@@ -1,12 +1,9 @@
 """Runtime coordinator for kducky Pico 2 W.
 
 Manages the startup -> run -> shutdown lifecycle.
-Managers are independent — they communicate only through Runtime.
 """
 
-from platform.pico import backends, crash, logger, payload, webapp, wifi
-
-import socketpool
+from platform.pico import backends, crash, logger, payload
 
 from ducky.ast import LedState
 
@@ -21,16 +18,12 @@ def _read_boot_reason() -> str:
 
 
 def _is_stealth(boot_reason: str) -> bool:
-    """Return True if USB mass storage should be hidden (stealth/development)."""
+    """Return True if USB mass storage should be hidden."""
     return boot_reason in {"development"}
 
 
 class Runtime:
-    """Runtime coordinator for kducky Pico 2 W.
-
-    Manages the startup -> run -> shutdown lifecycle.
-    Managers are independent — they communicate only through Runtime.
-    """
+    """Runtime coordinator for kducky Pico 2 W."""
 
     def __init__(self) -> None:
         self._boot_reason: str = _read_boot_reason()
@@ -46,27 +39,7 @@ class Runtime:
             logger.write_line("[runtime] crash lockout — entering recovery mode")
             crash.force_visible()
 
-        # WiFi + Web UI (always start unless setup/dev mode)
-        if self._boot_reason not in ("setup", "development"):
-            try:
-                wifi_started: bool = wifi.start()
-            except Exception:
-                wifi_started = False
-            if wifi_started:
-                radio = wifi.radio()
-                if radio is not None:
-                    pool = socketpool.SocketPool(radio)
-                    webapp.set_socketpool(pool)
-                webapp.set_boot_reason(self._boot_reason)
-                webapp.set_usb_visible(not _is_stealth(self._boot_reason))
-                webapp.start()
-                logger.write_line(f"[runtime] web UI started ({wifi.mode()})")
-            else:
-                logger.write_line("[runtime] WiFi unavailable — no web UI")
-        else:
-            logger.write_line(f"[runtime] {self._boot_reason} mode — no WiFi/UI")
-
-        # PicoPlatform (only deploy/dev+usb modes)
+        # PicoPlatform (only deploy/dev+usb modes, skip in recovery)
         if self._boot_reason in ("deploy", "dev+usb") and not is_recovery:
             self._create_platform()
 
@@ -80,14 +53,13 @@ class Runtime:
             logger.write_line(f"[runtime] ERROR creating platform: {e}")
 
     def run(self) -> None:
-        """Main execution — run payload or serve recovery UI."""
+        """Main execution — run payload if platform available."""
         if self._stopped:
             return
 
-        # Lockout / setup/dev modes — serve web UI only
+        # No platform = setup/development mode or recovery — skip payload
         if self._platform is None:
-            logger.write_line("[runtime] no platform — serving web UI only")
-            self._serve_forever()
+            logger.write_line(f"[runtime] {self._boot_reason} mode — no payload")
             return
 
         # Run payload
@@ -97,7 +69,6 @@ class Runtime:
             logger.write_line(f"[runtime] payload crashed: {e}")
             crash.increment()
             import traceback
-
             crash.set_last_error(traceback.format_exc())
         else:
             crash.reset()
@@ -152,16 +123,6 @@ class Runtime:
         platform.set_led(LedState.G)
         logger.write_line("[runtime] payload complete")
 
-    def _serve_forever(self) -> None:
-        """Serve web UI with crash recovery polling."""
-        from ducky.platform import RestartPayloadSignal, StopPayloadSignal
-
-        try:
-            while not self._stopped:
-                webapp.serve_once()
-        except (RestartPayloadSignal, StopPayloadSignal):
-            pass
-
     def stop(self) -> None:
         """Graceful shutdown."""
         self._stopped = True
@@ -170,6 +131,4 @@ class Runtime:
                 self._platform.deinit()
             except Exception:
                 pass
-        webapp.stop()
-        wifi.stop()
         logger.write_line("[runtime] shutdown complete")
