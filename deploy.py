@@ -58,6 +58,31 @@ def _discover_files(repo_root: str) -> list[tuple[str, str]]:
     return files
 
 
+def _discover_lib_files(repo_root: str) -> list[tuple[str, str]]:
+    """Walk ``lib/`` and yield ``(src_rel, dst_rel)`` pairs.
+
+    Files keep their path relative to ``lib/``, prefixed with ``lib/``.
+    """
+    lib_root = os.path.join(repo_root, "lib")
+    files: list[tuple[str, str]] = []
+
+    if not os.path.isdir(lib_root):
+        return files
+
+    for dirpath, dirnames, filenames in os.walk(lib_root):
+        dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+        for fname in filenames:
+            if fname.endswith(".pyc"):
+                continue
+            if not (fname.endswith(".py") or fname.endswith(".json") or fname == ".gitkeep"):
+                continue
+            full = os.path.join(dirpath, fname)
+            rel = os.path.relpath(full, lib_root).replace(os.sep, "/")
+            files.append((os.path.join("lib", rel), os.path.join("lib", rel)))
+
+    return files
+
+
 def _file_hash(path: str) -> str:
     """Return MD5 hex digest of *path* contents."""
     h = hashlib.md5()
@@ -92,7 +117,9 @@ def deploy(circuitpy_path: str, dry_run: bool = False) -> None:
     skipped = 0
     errors: list[str] = []
 
-    for src_rel, dst_rel in _discover_files(repo_root):
+    all_files = _discover_files(repo_root) + _discover_lib_files(repo_root)
+
+    for src_rel, dst_rel in all_files:
         src = os.path.join(repo_root, src_rel)
         dst = os.path.join(circuitpy_path, dst_rel)
 

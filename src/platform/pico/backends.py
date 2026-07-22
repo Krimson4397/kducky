@@ -187,7 +187,14 @@ if _HAS_HW:
 else:
     _ACTION_KEY_MAP = {}
     _MODIFIER_KEY_MAP = {}
-    _RNG = _random.Random()
+    try:
+        _RNG = _random.Random()
+    except AttributeError:
+        # CircuitPython: random module has no Random() class
+        class _FallbackRNG:
+            def randint(self, a: int, b: int) -> int:
+                return _random.randint(a, b)
+        _RNG = _FallbackRNG()
 
 # Digit key names for single-char keycode resolution
 _DIGIT_NAMES = ["ZERO", "ONE", "TWO", "THREE", "FOUR",
