@@ -7,7 +7,7 @@ two GPIO jumpers and a /system/FORCE_USB_VISIBLE recovery flag.
 Boot modes:
   GP0=high, GP15=high  → Deploy (HID + storage, payload runs)
   GP0=low,  GP15=high  → Setup (serial + USB, no HID)
-  GP0=high, GP15=low   → Dev+USB (HID + stealth storage, payload runs)
+   GP0=high, GP15=low   → Dev+USB (HID + USB visible, payload runs)
   GP0=low,  GP15=low   → Development (serial + USB, no HID)
 
 Use /system/FORCE_USB_VISIBLE to override stealth and force mass storage
@@ -87,9 +87,8 @@ elif not gp0_high:
     # usb_hid stays disabled (default)
 
 elif not gp15_high and not force_visible:
-    # Dev+USB mode: HID + stealth storage (hidden unless force-visible)
+    # Dev+USB mode: HID + USB visible (no stealth)
     _write_boot_reason("dev+usb")
-    storage.disable_usb_drive()
     usb_hid.enable()
 
 else:

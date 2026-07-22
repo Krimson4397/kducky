@@ -22,7 +22,7 @@ def _read_boot_reason() -> str:
 
 def _is_stealth(boot_reason: str) -> bool:
     """Return True if USB mass storage should be hidden (stealth/development)."""
-    return boot_reason in {"dev+usb", "development"}
+    return boot_reason in {"development"}
 
 
 class Runtime:
