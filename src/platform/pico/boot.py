@@ -34,6 +34,15 @@ def _is_high(pin_name: str) -> bool:
         return True  # safe default — treat as high
 
 
+def _is_crash_locked() -> bool:
+    """Return True if crash_count >= 3 (lockout threshold)."""
+    try:
+        with open("/system/crash_count") as f:
+            return int(f.read().strip()) >= 3
+    except (OSError, ValueError):
+        return False
+
+
 def _has_force_visible() -> bool:
     """Check if /system/FORCE_USB_VISIBLE flag exists (crash recovery)."""
     try:
@@ -70,13 +79,11 @@ force_visible: bool = _has_force_visible()
 if not gp0_high and not gp15_high:
     # Development mode: serial + USB visible, no HID
     _write_boot_reason("development")
-    storage.disable_usb_drive()
     # usb_hid stays disabled (default)
 
 elif not gp0_high:
     # Setup mode: serial + USB visible, no HID
     _write_boot_reason("setup")
-    storage.disable_usb_drive()
     # usb_hid stays disabled (default)
 
 elif not gp15_high and not force_visible:
@@ -86,9 +93,9 @@ elif not gp15_high and not force_visible:
     usb_hid.enable()
 
 else:
-    # Deploy mode: HID + storage (hidden unless force-visible)
+    # Deploy mode: HID + storage (hidden unless force-visible or crash lockout)
     _write_boot_reason("deploy")
-    if not force_visible:
+    if not force_visible and not _is_crash_locked():
         storage.disable_usb_drive()
     usb_hid.enable()
 
