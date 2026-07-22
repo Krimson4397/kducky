@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** Pico Runtime Features — GP0/GP15 boot modes, WiFi web UI, crash recovery. Interpreter: 784 tests passing.  
+**Current status:** KISS runtime (WiFi removed) — payload-only execution. Post-payload WiFi retrieval planned.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -156,17 +156,18 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 1.0.0                            |
-| Completed Feature     | Pico Runtime Features (GP0/GP15 boot modes, WiFi web UI, crash recovery) |
+| Completed Feature     | WiFi removal (KISS runtime) + Post-payload WiFi plan |
 | Current Branch        | main                             |
-| Last Commit           | 115e98b                          |
+| Last Commit           | fb5bc7a                          |
 | Repository Status     | Clean working tree |
-| Next Milestone        | README Roadmap — Tier 1 features |
+| Next Milestone        | Post-payload WiFi retrieval (see plans/Post_Payload_WiFi_Plan.md) |
 | Blocking Issues       | None                             |
 | Ready to Continue     | YES (awaiting user approval) |
 
 ### Files Created
 
 - `plans/Pico_Runtime_Features_Plan.md` — Design document for Pico runtime features
+- `plans/Post_Payload_WiFi_Plan.md` — Design plan for post-payload WiFi retrieval
 - `src/platform/pico/logger.py` — Rotating dual-file log (`/logs/latest.log`, `/logs/previous.log`)
 - `src/platform/pico/crash.py` — Crash counter + lockout manager (threshold=3, `/system/` state files)
 - `src/platform/pico/payload.py` — Payload manager with CRC32 fingerprint, atomic update with validate
@@ -178,6 +179,12 @@ This section **must** be updated at the completion of every milestone. It descri
 
 - `src/platform/pico/boot.py` — Rewritten: 4 boot modes from GPIO jumpers (GP0+GP15), /system/FORCE_USB_VISIBLE recovery flag, writes /system/boot_reason
 - `src/platform/pico/main.py` — Rewritten: thin entry point (56 LOC) delegating to Runtime, _crash_handler for crash counting/logging
+
+### Files Deleted (WiFi Removal)
+
+- `src/platform/pico/wifi.py` — DELETED
+- `src/platform/pico/webapp.py` — DELETED
+- `src/platform/pico/runtime.py` — Stripped of all WiFi/web imports and logic; simplified to just payload execution
 
 ### Previously Committed (da5be05) — Interpreter fixes from hardware validation
 
@@ -305,7 +312,7 @@ This section **must** be updated at the completion of every milestone. It descri
 - Expression visitor stubs — StringExpr/IdentifierExpr/HashIdentifierExpr all return 0
 - ExtensionStmt phase-2 skip — auto-create-on-read handles missing vars instead of double-executing extensions
 
-**Pico Runtime** (uncommitted — in working tree):
+**Pico Runtime** (committed in fb5bc7a):
 - boot.py — 4 boot modes from GPIO jumpers (GP0=setup, GP15=stealth, both=dev, none=development)
 - logger.py — rotating dual-file log (/logs/latest.log + /logs/previous.log)
 - crash.py — crash counter + lockout at threshold 3, /system/FORCE_USB_VISIBLE recovery flag
