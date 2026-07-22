@@ -15,9 +15,12 @@ LAST_ERROR_PATH = "/system/last_error"
 def _ensure_system_dir() -> None:
     """Create /system/ directory if it doesn't exist."""
     try:
-        os.makedirs("/system", exist_ok=True)
+        os.stat("/system")
     except OSError:
-        pass
+        try:
+            os.mkdir("/system")
+        except OSError:
+            pass
 
 
 def get_count() -> int:

@@ -46,7 +46,13 @@ def _has_force_visible() -> bool:
 def _write_boot_reason(reason: str) -> None:
     """Write boot reason for runtime to consume."""
     try:
-        os.makedirs("/system", exist_ok=True)
+        os.stat("/system")
+    except OSError:
+        try:
+            os.mkdir("/system")
+        except OSError:
+            pass
+    try:
         with open("/system/boot_reason", "w") as f:
             f.write(reason)
     except OSError:

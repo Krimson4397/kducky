@@ -38,8 +38,11 @@ def write_line(message: str) -> None:
     """Append a line to latest.log, rotating on first boot-time write."""
     _ensure_dir()
     _rotate()
-    with open(_LATEST, "a") as f:
-        f.write(message + "\n")
+    try:
+        with open(_LATEST, "a") as f:
+            f.write(message + "\n")
+    except OSError:
+        pass
 
 
 def read_latest() -> str:
