@@ -211,6 +211,10 @@ class DuckyLexer:
 
             # 1. Block-comment mode — skip everything until END_REM
             if in_block_comment:
+                # Skip leading whitespace before checking for END_REM
+                while i < len(source) and source[i] in " \t\r":
+                    i += 1
+                    col += 1
                 if (
                     i + 7 <= len(source)
                     and source[i : i + 7].upper() == "END_REM"

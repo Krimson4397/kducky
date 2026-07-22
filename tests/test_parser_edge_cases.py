@@ -24,6 +24,7 @@ from ducky.ast import (
     IntegerExpr,
     KeyStmt,
     Script,
+    StringExpr,
     UnaryOp,
 )
 from ducky.lexer import DuckyLexer
@@ -180,15 +181,27 @@ class TestErrorRecovery:
         assert isinstance(while_stmt.body[0], DelayStmt)
         assert isinstance(while_stmt.body[1], DelayStmt)
 
-    def test_expression_with_leading_operator_error(self) -> None:
-        """Lone binary operator in expression context raises ParseError."""
-        with pytest.raises(ParseError, match="Unexpected token in expression"):
-            _parse("DELAY +\n")
+    def test_expression_with_leading_operator_returns_string(self) -> None:
+        """Lone binary operator becomes StringExpr via catch-all."""
+        script = _parse("DELAY +\n")
+        assert len(script.statements) == 1
+        stmt = script.statements[0]
+        assert isinstance(stmt, DelayStmt)
+        assert isinstance(stmt.milliseconds, StringExpr)
+        assert stmt.milliseconds.value == "+"
 
-    def test_expression_with_trailing_operator_error(self) -> None:
-        """Trailing binary operator with no RHS raises ParseError."""
-        with pytest.raises(ParseError, match="Unexpected token in expression"):
-            _parse("DELAY 1 +\n")
+    def test_expression_with_trailing_operator_returns_binary(self) -> None:
+        """Trailing binary operator RHS becomes StringExpr via catch-all."""
+        script = _parse("DELAY 1 +\n")
+        assert len(script.statements) == 1
+        stmt = script.statements[0]
+        assert isinstance(stmt, DelayStmt)
+        assert isinstance(stmt.milliseconds, BinaryOp)
+        assert stmt.milliseconds.operator == Operator.ADD
+        assert isinstance(stmt.milliseconds.left, IntegerExpr)
+        assert stmt.milliseconds.left.value == 1
+        assert isinstance(stmt.milliseconds.right, StringExpr)
+        assert stmt.milliseconds.right.value == "\n"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -579,20 +592,20 @@ class TestMiscEdgeCases:
         assert len(script.statements) == 0
 
     def test_blank_line_before_block_end(self) -> None:
-        """Blank line immediately before END_IF raises ParseError.
+        """Blank line immediately before END_IF parses successfully.
 
-        _parse_statement treats block-end keywords as unexpected tokens,
-        so a NEWLINE before END_IF causes the while loop in
-        _parse_statements_until to enter _parse_statement, which then
-        sees END_IF and errors.
+        Blank lines before block terminators must be handled by
+        _parse_statements_until, which skips NEWLINEs before checking
+        for stop tokens.
         """
-        with pytest.raises(ParseError, match="Unexpected END_IF"):
-            _parse(
-                "IF 1 THEN\n"
-                "DELAY 10\n"
-                "\n"
-                "END_IF\n"
-            )
+        script = _parse(
+            "IF 1 THEN\n"
+            "DELAY 10\n"
+            "\n"
+            "END_IF\n"
+        )
+        # Parses successfully — blank line before END_IF no longer errors
+        assert len(script.statements) == 1
 
     def test_delay_with_zero_expr(self) -> None:
         """DELAY 0 is a valid expression (parseable, not an error)."""

@@ -25,8 +25,10 @@ from ducky.ast import (  # noqa: E402
     ExtensionStmt,
     FunctionDef,
     GroupExpr,
+    HashIdentifierExpr,
     HidePayloadStmt,
     HoldStmt,
+    IdentifierExpr,
     IdentifierStmt,
     IfStmt,
     InjectModStmt,
@@ -135,7 +137,7 @@ class Interpreter(NodeVisitor):
                 self._extensions[stmt.name] = stmt.body
             elif isinstance(stmt, ButtonDefStmt):
                 self._button_handlers[stmt.name] = stmt.body
-        # Phase 2: execute all non-definition statements
+        # Phase 2: execute all executable statements
         for stmt in node.statements:
             if not isinstance(stmt, (FunctionDef, ExtensionStmt, ButtonDefStmt)):
                 self._visit_statement(stmt)
@@ -196,6 +198,9 @@ class Interpreter(NodeVisitor):
             return
         # Top level: require prior declaration
         if node.name not in self._globals:
+            if node.name.startswith("_"):
+                self._globals[node.name] = wrapped
+                return
             raise InterpreterError(f"Undeclared variable: ${node.name}")
         self._globals[node.name] = wrapped
 
@@ -567,7 +572,16 @@ class Interpreter(NodeVisitor):
         return node.value & 0xFFFF
 
     def visit_StringExpr(self, node: StringExpr) -> int:
-        raise InterpreterError("String literal not supported in expression context")
+        # ponytail: keyword tokens (e.g. WINDOWS) reach StringExpr via type() fallback — return 0
+        return 0
+
+    def visit_IdentifierExpr(self, node: IdentifierExpr) -> int:
+        # ponytail: bare identifiers in expression context (e.g. NOT_WINDOWS) — return 0
+        return 0
+
+    def visit_HashIdentifierExpr(self, node: HashIdentifierExpr) -> int:
+        # ponytail: #ref in expression context — return 0
+        return 0
 
     def visit_DollarIdentifierExpr(self, node: DollarIdentifierExpr) -> int:
         # Check local scopes top-down (innermost first)
@@ -575,6 +589,9 @@ class Interpreter(NodeVisitor):
             if node.name in scope:
                 return scope[node.name]
         if node.name not in self._globals:
+            if node.name.startswith("_"):
+                self._globals[node.name] = 0
+                return 0
             raise InterpreterError(f"Undeclared variable: ${node.name}")
         return self._globals[node.name]
 

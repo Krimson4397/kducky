@@ -309,7 +309,13 @@ class DuckyParser:
     ) -> list[Stmt]:
         """Parse statements until one of *stop_tokens* is reached (not consumed)."""
         stmts: list[Stmt] = []
-        while not self._at_end() and self._peek().type not in stop_tokens:
+        while not self._at_end():
+            # Skip blank lines before checking stop tokens — avoids
+            # "Unexpected END_*" errors when a blank line precedes a block terminator.
+            while self._match(TokenType.NEWLINE):
+                pass
+            if self._at_end() or self._peek().type in stop_tokens:
+                break
             stmt = self._parse_statement()
             if stmt is not None:
                 stmts.append(stmt)
@@ -1149,111 +1155,64 @@ class DuckyParser:
             name=name_token.value, body=tuple(body)
         )
 
-    # ── Expression parsing (precedence climbing) ─────────────────────────────
+    # ── Expression parsing (iterative precedence climbing / Pratt parser) ────
+    # Replaces the old 12-method recursive cascade that caused pystack
+    # exhaustion on CircuitPython with deeply nested parenthesized expressions.
 
-    def _parse_expression(self) -> Expr:
-        """Parse an expression starting at the assignment level."""
-        return self._parse_assignment()
+    _PRECEDENCE: dict[TokenType, int] = {
+        TokenType.ASSIGN: 2,
+        TokenType.OR: 3,
+        TokenType.AND: 4,
+        TokenType.PIPE: 5,
+        TokenType.AMPERSAND: 6,
+        TokenType.EQ: 7,
+        TokenType.NE: 7,
+        TokenType.LT: 8,
+        TokenType.GT: 8,
+        TokenType.LE: 8,
+        TokenType.GE: 8,
+        TokenType.LSHIFT: 9,
+        TokenType.RSHIFT: 9,
+        TokenType.PLUS: 10,
+        TokenType.MINUS: 10,
+        TokenType.STAR: 11,
+        TokenType.SLASH: 11,
+        TokenType.PERCENT: 11,
+        TokenType.CARET: 11,
+    }
 
-    def _parse_assignment(self) -> Expr:
-        """Level 2: assignment ``=`` (right-associative)."""
-        expr = self._parse_logical_or()
-        if self._match(TokenType.ASSIGN):
-            right = self._parse_assignment()
-            return BinaryOp(expr, Operator.ASSIGN, right)
-        return expr
+    _RIGHT_ASSOC: set[TokenType] = {TokenType.ASSIGN}
+    _UNARY_PREC: int = 12  # Unary ! and - (highest precedence, right-assoc)
 
-    def _parse_logical_or(self) -> Expr:
-        """Level 3: logical OR ``||`` (left-associative)."""
-        expr = self._parse_logical_and()
-        while self._match(TokenType.OR):
-            right = self._parse_logical_and()
-            expr = BinaryOp(expr, Operator.LOGICAL_OR, right)
-        return expr
+    def _parse_expression(self, min_precedence: int = 0) -> Expr:
+        """Parse expression using iterative precedence climbing (Pratt parser).
 
-    def _parse_logical_and(self) -> Expr:
-        """Level 4: logical AND ``&&`` (left-associative)."""
-        expr = self._parse_bitwise_or()
-        while self._match(TokenType.AND):
-            right = self._parse_bitwise_or()
-            expr = BinaryOp(expr, Operator.LOGICAL_AND, right)
-        return expr
-
-    def _parse_bitwise_or(self) -> Expr:
-        """Level 5: bitwise OR ``|`` (left-associative)."""
-        expr = self._parse_bitwise_and()
-        while self._match(TokenType.PIPE):
-            right = self._parse_bitwise_and()
-            expr = BinaryOp(expr, Operator.BITWISE_OR, right)
-        return expr
-
-    def _parse_bitwise_and(self) -> Expr:
-        """Level 6: bitwise AND ``&`` (left-associative)."""
-        expr = self._parse_equality()
-        while self._match(TokenType.AMPERSAND):
-            right = self._parse_equality()
-            expr = BinaryOp(expr, Operator.BITWISE_AND, right)
-        return expr
-
-    def _parse_equality(self) -> Expr:
-        """Level 7: equality ``==`` ``!=`` (left-associative)."""
-        expr = self._parse_relational()
-        while self._match(TokenType.EQ, TokenType.NE):
-            op = _TOKEN_TO_OPERATOR[self._previous().type]
-            right = self._parse_relational()
-            expr = BinaryOp(expr, op, right)
-        return expr
-
-    def _parse_relational(self) -> Expr:
-        """Level 8: relational ``<`` ``<=`` ``>`` ``>=`` (left-associative)."""
-        expr = self._parse_shift()
-        while self._match(TokenType.LT, TokenType.GT, TokenType.LE, TokenType.GE):
-            op = _TOKEN_TO_OPERATOR[self._previous().type]
-            right = self._parse_shift()
-            expr = BinaryOp(expr, op, right)
-        return expr
-
-    def _parse_shift(self) -> Expr:
-        """Level 9: shift ``<<`` ``>>`` (left-associative)."""
-        expr = self._parse_additive()
-        while self._match(TokenType.LSHIFT, TokenType.RSHIFT):
-            op = _TOKEN_TO_OPERATOR[self._previous().type]
-            right = self._parse_additive()
-            expr = BinaryOp(expr, op, right)
-        return expr
-
-    def _parse_additive(self) -> Expr:
-        """Level 10: addition/subtraction ``+`` ``-`` (left-associative)."""
-        expr = self._parse_multiplicative()
-        while self._match(TokenType.PLUS, TokenType.MINUS):
-            op = _TOKEN_TO_OPERATOR[self._previous().type]
-            right = self._parse_multiplicative()
-            expr = BinaryOp(expr, op, right)
-        return expr
-
-    def _parse_multiplicative(self) -> Expr:
-        """Level 11: multiplicative ``*`` ``/`` ``%`` ``^`` (left-associative).
-
-        Per spec §4.1: ``^`` (POWER/exponentiation) is at the multiplicative
-        precedence level alongside ``*``, ``/``, ``%``, all left-associative.
-        Example: ``2 * 3 ^ 4`` parses as ``(2 * 3) ^ 4``.
+        Eliminates recursive method cascade (was 12 stack frames per nesting
+        level) that caused pystack exhaustion on CircuitPython with deeply
+        nested parenthesized expressions.
         """
-        expr = self._parse_unary()
-        while self._match(
-            TokenType.STAR, TokenType.SLASH, TokenType.PERCENT, TokenType.CARET
-        ):
-            op = _TOKEN_TO_OPERATOR[self._previous().type]
-            right = self._parse_unary()
-            expr = BinaryOp(expr, op, right)
-        return expr
-
-    def _parse_unary(self) -> Expr:
-        """Level 12: unary ``!`` ``-`` (right-associative)."""
+        # Prefix phase — unary operators
         if self._match(TokenType.BANG, TokenType.MINUS):
             op = _TOKEN_TO_OPERATOR[self._previous().type]
-            operand = self._parse_unary()
-            return UnaryOp(op, operand)
-        return self._parse_primary()
+            operand = self._parse_expression(self._UNARY_PREC)
+            left: Expr = UnaryOp(op, operand)
+        else:
+            left = self._parse_primary()
+
+        # Infix phase — consume binary operators with sufficient precedence
+        while (not self._at_end()
+               and self._peek().type in self._PRECEDENCE):
+            op_type = self._peek().type
+            op_prec = self._PRECEDENCE[op_type]
+            if op_prec < min_precedence:
+                break
+            self._advance()  # consume operator token
+            next_prec = op_prec if op_type in self._RIGHT_ASSOC else op_prec + 1
+            right = self._parse_expression(next_prec)
+            operator = _TOKEN_TO_OPERATOR[op_type]
+            left = BinaryOp(left, operator, right)
+
+        return left
 
     def _parse_primary(self) -> Expr:
         """Parse primary expressions: literals, identifiers, groups."""
@@ -1287,9 +1246,6 @@ class DuckyParser:
             self._consume(TokenType.RPAREN, "Expected ')'")
             return GroupExpr(expr)
 
-        token = self._peek()
-        raise ParseError(
-            f"Unexpected token in expression: {token.type.name}",
-            token.line,
-            token.column,
-        )
+        # Keyword tokens used as identifier values (e.g., $_OS = WINDOWS)
+        token = self._advance()
+        return StringExpr(token.value)

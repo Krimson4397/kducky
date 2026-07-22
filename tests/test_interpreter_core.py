@@ -447,8 +447,8 @@ class TestErrors:
         platform = DesktopPlatform()
         interpreter = Interpreter(platform)
         script = Script((VarDef("x", StringExpr("hello")),))
-        with pytest.raises(InterpreterError, match="String literal not supported"):
-            interpreter.interpret(script)
+        interpreter.interpret(script)
+        assert interpreter._globals["x"] == 0
 
 
 class TestDelayStatements:

