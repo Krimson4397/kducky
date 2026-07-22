@@ -79,16 +79,19 @@ force_visible: bool = _has_force_visible()
 if not gp0_high and not gp15_high:
     # Development mode: serial + USB visible, no HID
     _write_boot_reason("development")
+    storage.remount("/", readonly=False)
     # usb_hid stays disabled (default)
 
 elif not gp0_high:
     # Setup mode: serial + USB visible, no HID
     _write_boot_reason("setup")
+    storage.remount("/", readonly=False)
     # usb_hid stays disabled (default)
 
 elif not gp15_high and not force_visible:
     # Dev+USB mode: HID + USB visible (no stealth)
     _write_boot_reason("dev+usb")
+    storage.remount("/", readonly=False)
     usb_hid.enable()
 
 else:

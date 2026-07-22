@@ -31,7 +31,10 @@ def _rotate() -> None:
         os.remove(_PREVIOUS)
     except OSError:
         pass
-    os.rename(_LATEST, _PREVIOUS)
+    try:
+        os.rename(_LATEST, _PREVIOUS)
+    except OSError:
+        pass
 
 
 def write_line(message: str) -> None:
