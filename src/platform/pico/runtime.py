@@ -48,7 +48,10 @@ class Runtime:
 
         # WiFi + Web UI (always start unless setup/dev mode)
         if self._boot_reason not in ("setup", "development"):
-            wifi_started: bool = wifi.start()
+            try:
+                wifi_started: bool = wifi.start()
+            except Exception:
+                wifi_started = False
             if wifi_started:
                 radio = wifi.radio()
                 if radio is not None:
