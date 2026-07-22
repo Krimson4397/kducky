@@ -50,7 +50,10 @@ class Runtime:
         if self._boot_reason not in ("setup", "development"):
             wifi_started: bool = wifi.start()
             if wifi_started:
-                webapp.set_socketpool(socketpool)
+                radio = wifi.radio()
+                if radio is not None:
+                    pool = socketpool.SocketPool(radio)
+                    webapp.set_socketpool(pool)
                 webapp.set_boot_reason(self._boot_reason)
                 webapp.set_usb_visible(not _is_stealth(self._boot_reason))
                 webapp.start()

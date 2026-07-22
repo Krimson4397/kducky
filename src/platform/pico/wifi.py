@@ -109,6 +109,11 @@ def ssid() -> str:
     return _ssid
 
 
+def radio():
+    """Return the wifi radio object, or None if wifi hardware unavailable."""
+    return _wifi.radio if _HAS_WIFI else None
+
+
 # ── Internal helpers ───────────────────────────────────────────────────
 
 
