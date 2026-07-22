@@ -158,7 +158,7 @@ This section **must** be updated at the completion of every milestone. It descri
 | Project Version       | 1.0.0                            |
 | Completed Feature     | Pico Runtime Features (GP0/GP15 boot modes, WiFi web UI, crash recovery) |
 | Current Branch        | main                             |
-| Last Commit           | 1b310b0                          |
+| Last Commit           | 115e98b                          |
 | Repository Status     | Clean working tree |
 | Next Milestone        | README Roadmap — Tier 1 features |
 | Blocking Issues       | None                             |
