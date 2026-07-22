@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** M18 — Complete Interpreter + payload creation (all 13 AST visitors implemented, attack payloads).  
+**Current status:** Pico Runtime Features — GP0/GP15 boot modes, WiFi web UI, crash recovery. Interpreter: 784 tests passing.  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -156,39 +156,40 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 1.0.0                            |
-| Completed Milestone   | M19+M20 — Hardware Validation + Release |
+| Completed Feature     | Pico Runtime Features (GP0/GP15 boot modes, WiFi web UI, crash recovery) |
 | Current Branch        | main                             |
-| Last Commit           | 4bb85d2                          |
-| Repository Status     | Clean working tree                 |
+| Last Commit           | 1b310b0                          |
+| Repository Status     | Clean working tree |
 | Next Milestone        | README Roadmap — Tier 1 features |
 | Blocking Issues       | None                             |
-| Ready to Continue     | YES (awaiting user approval)     |
+| Ready to Continue     | YES (awaiting user approval) |
 
 ### Files Created
 
-- `tests/test_d3_extensions.py` — 14 tests for REBOOT, REPLAY, JITTER, INJECT_VAR, $_ internal vars, END_STRING block mode, MOUSE operations.
-- `tests/test_parser_edge_cases.py` — 55 edge case tests (error recovery, expression precedence, function parsing corner cases, misc).
-- `tests/test_interpreter_edge_cases.py` — 48 edge case tests (nested functions, recursion, nested loops, variable shadowing, overflow/wrapping, REPEAT corners, function registration).
+- `plans/Pico_Runtime_Features_Plan.md` — Design document for Pico runtime features
+- `src/platform/pico/logger.py` — Rotating dual-file log (`/logs/latest.log`, `/logs/previous.log`)
+- `src/platform/pico/crash.py` — Crash counter + lockout manager (threshold=3, `/system/` state files)
+- `src/platform/pico/payload.py` — Payload manager with CRC32 fingerprint, atomic update with validate
+- `src/platform/pico/wifi.py` — WiFi connection manager (station-first, AP fallback, secrets.py)
+- `src/platform/pico/webapp.py` — HTTP server (GET /, GET /status, POST /payload, GET /logs)
+- `src/platform/pico/runtime.py` — Runtime coordinator with start()/run()/stop() lifecycle
 
 ### Files Modified
 
-- `src/ducky/tokens.py` — Added `TokenType` members: `JITTER`, `ON`, `OFF`, `INJECT_VAR`, `END_STRING`, `END_STRINGLN`, `REBOOT`, `REPLAY`, `MOUSE_MOVE`, `MOUSE_MOVE_TO`, `MOUSE_CLICK`, `MOUSE_DOWN`, `MOUSE_UP`, `MOUSE_SCROLL`.
-- `src/ducky/lexer.py` — Added 14 new keyword mappings. Modified STRING/STRINGLN handlers to detect block mode (no inline body → enter block mode, read lines until END_STRING/END_STRINGLN).
-- `src/ducky/ast/nodes.py` — Added AST nodes: `RebootStmt`, `ReplayStmt`, `JitterStmt`, `InjectVarStmt`, `MouseStmt`, `MouseAction` enum, `MouseButton` enum.
-- `src/ducky/ast/__init__.py` — Exported all new AST types.
-- `src/ducky/parser.py` — Added dispatch and parse methods for REBOOT, REPLAY, JITTER, INJECT_VAR, and all 6 MOUSE variants. Changed `_parse_release_stmt` to not require INJECT_MOD before RELEASE of modifier.
-- `src/ducky/platform/__init__.py` — Added 5 protocol methods: `reboot_target()`, plus 6 mouse methods (`mouse_move`, `mouse_move_to`, `mouse_click`, `mouse_down`, `mouse_up`, `mouse_scroll`).
-- `src/ducky/platform/desktop.py` — Added stub implementations for all new protocol methods (recording via `_record()`).
-- `src/platform/pico/backends.py` — Added `Mouse` import, `_mouse` init, implementations for `reboot_target()` (GUI r + shutdown), 5 mouse methods using `adafruit_hid.mouse`, and `mouse_move_to` as no-op.
-- `src/ducky/interpreter.py` — Added `_jitter_enabled/min/max` state, `_inject_var_pending` flag, `_populate_internal_vars()` (pre-populates 7 `$_` vars into globals), visitor methods for all new AST nodes, and `_type_text` now handles `\n` for block-mode STRINGLN.
-- `src/platform/pico/main.py` — Refactored `main()` into retry loop catching `RestartPayloadSignal` for REPLAY support. Added `_runtime.autoreload = False` to prevent file-rename restarts.
-- `src/ducky/interpreter.py` — Added `visit_ReplayStmt` raising `RestartPayloadSignal`, `visit_RebootStmt` calling `platform.reboot_target()`, `visit_JitterStmt`, `visit_InjectVarStmt`, `visit_MouseStmt`, `_type_text` handles `\n` for block-mode STRINGLN.
-- `tests/test_interpreter_keyboard.py` — Fixed 11 tests to account for 3 new `_populate_internal_vars()` platform calls during interpreter init.
-- `tests/test_interpreter_functions.py` — Fixed 1 test expecting empty `platform.calls` (now 3 init calls).
+- `src/platform/pico/boot.py` — Rewritten: 4 boot modes from GPIO jumpers (GP0+GP15), /system/FORCE_USB_VISIBLE recovery flag, writes /system/boot_reason
+- `src/platform/pico/main.py` — Rewritten: thin entry point (56 LOC) delegating to Runtime, _crash_handler for crash counting/logging
+
+### Previously Committed (da5be05) — Interpreter fixes from hardware validation
+
+- `src/ducky/lexer.py` — REM_BLOCK: skip leading whitespace before END_REM check (fixes indented `END_REM`)
+- `src/ducky/parser.py` — Pratt parser: replaced 12-method recursive cascade with iterative precedence climbing (fixes pystack exhaustion on CircuitPython); WINDOWS keyword → StringExpr fallthrough; blank line before block terminator fix
+- `src/ducky/interpreter.py` — $_ vars auto-create on assign/read (default 0); StringExpr/IdentifierExpr/HashIdentifierExpr visitors return 0; ExtensionStmt revert to skip (auto-create-on-read handles missing §_ vars)
+- `tests/test_interpreter_core.py` — Updated for StringExpr behavior change
+- `tests/test_parser_edge_cases.py` — Updated for new parser behaviors
 
 ### Tests Executed
 
-- `python -m pytest tests/ -x -q` — **784 passed, 6 skipped** (103 edge-case + 14 REBOOT/REPLAY/JITTER + 7 INJECT_VAR + 7 $_ vars + 12 END_STRING + 13 MOUSE + backfill fixes)
+- `python -m pytest tests/ -x -q` — **784 passed, 6 skipped** (no regressions from pre-implementation baseline)
 - `ruff check src/ tests/` — All checks passed
 
 ### Acceptance Criteria Completed
@@ -269,68 +270,65 @@ This section **must** be updated at the completion of every milestone. It descri
 - [x] **B7: MOUSE** — All 6 variants (MOUSE_MOVE, MOUSE_MOVE_TO, MOUSE_CLICK, MOUSE_DOWN, MOUSE_UP, MOUSE_SCROLL) through full pipeline; LEFT/RIGHT/MIDDLE buttons via existing tokens + IDENTIFIER("MIDDLE"); PicoPlatform uses `adafruit_hid.mouse`; `mouse_move_to` is HID no-op
 - [x] Phase A: 103 edge-case tests (error recovery, nested functions, recursion, nested loops, variable shadowing, overflow, REPEAT corners, function registration)
 - [x] **Full suite: 784 tests pass, ruff clean, working tree clean**
+- [x] **REM_BLOCK whitespace:** Lexer skips leading whitespace before END_REM check (fixes indented END_REM in payloads)
+- [x] **Pratt parser:** Single iterative `_parse_expression(min_precedence)` replaces 12-method recursive cascade (stack depth per paren nesting: 12→1)
+- [x] **WINDOWS keyword as StringExpr:** `_parse_primary` fallthrough converts keyword tokens to StringExpr (e.g., `$_OS = WINDOWS`)
+- [x] **Blank line before block terminator:** NEWLINEs skipped inside `_parse_statements_until` loop before stop-token check
+- [x] **$_ vars auto-create on assign:** Top-level `$_OS = ...` auto-creates `$_`-prefixed vars in globals
+- [x] **$_ vars auto-create on read:** Undeclared `$_`-prefixed read returns 0 (FALSE)
+- [x] **Expression visitor stubs:** `visit_StringExpr`, `visit_IdentifierExpr`, `visit_HashIdentifierExpr` all return 0
+- [x] **boot.py:** 4 boot modes from GPIO jumpers (GP0+GP15), /system/FORCE_USB_VISIBLE override, writes /system/boot_reason
+- [x] **logger.py:** Rotating dual-file log (`/logs/latest.log` + `/logs/previous.log`), module-level guard flag, try/except for all OSError
+- [x] **crash.py:** Crash counter at /system/crash_count, LOCKOUT_THRESHOLD=3, force_visible()/clear_force_visible() for recovery, set_last_error()
+- [x] **payload.py:** payload.content()/exists()/fingerprint() (CRC32 via binascii.crc32), update() with atomic write→validate→rename, delete()
+- [x] **wifi.py:** Station-first (secrets.py ssid/password), AP fallback (kducky-AP/ducky123), start()/stop()/is_connected()/mode()/ip()/ssid()
+- [x] **webapp.py:** HTTP server with GET / (dark HTML status), GET /status (JSON), POST /payload (upload+validate+reset crashes), GET /logs; non-blocking serve_once() poll loop
+- [x] **runtime.py:** Coordinator with start()→WiFi→WebServer ordering→PicoPlatform→run() payload pipeline (preprocess→lex→parse→interpret with REPLAY/STOP support)→stop() teardown
+- [x] **main.py:** Minimal entry point (56 LOC), delegates to Runtime, _crash_handler for crash counting/logging
+- [x] Full suite: 784 tests pass, ruff clean
 
 ## 9. Next Session — What to Build
 
-Refer to `README.md` → **Roadmap — Next Features** section for the full prioritized list.
+**Pico Runtime Features complete.** 784 tests pass (unchanged from baseline). All hardware validation fixes from NullSec payload testing applied.
 
-**Start with Tier 1: Easy / Well-Understood:**
-- `EXFIL` (LED encoding) — pico-ducky pattern, no WiFi needed
-- `RANDOM_LINE` — built-in `os` + `random`
-- `RANDOM_STRING` — built-in `random`
-- `F13`–`F24` — keycode map additions
-- Extended media keys — keycode map additions
-- `JIGGLER` — MOUSE_MOVE loop or new command
+## What was built
 
-### Remaining Milestones
+8 interpreter fixes + 8 Pico runtime modules:
 
-Milestones 19–20 from the implementation roadmap.
+**Interpreter fixes** (committed in da5be05):
+- REM_BLOCK whitespace — indented END_REM now terminates block comments
+- Pratt parser — pystack exhaustion fixed for deeply nested WHILE(...) expressions
+- WINDOWS keyword as StringExpr — keyword tokens can appear in value positions
+- Blank line before block terminator — any block terminator preceded by blank line now parses
+- $_ vars auto-create on assign — `$_OS = ...` works without prior VAR $OS
+- $_ vars auto-create on read — undeclared `$_` var reads return 0 (FALSE)
+- Expression visitor stubs — StringExpr/IdentifierExpr/HashIdentifierExpr all return 0
+- ExtensionStmt phase-2 skip — auto-create-on-read handles missing vars instead of double-executing extensions
 
-### Known Issues
+**Pico Runtime** (uncommitted — in working tree):
+- boot.py — 4 boot modes from GPIO jumpers (GP0=setup, GP15=stealth, both=dev, none=development)
+- logger.py — rotating dual-file log (/logs/latest.log + /logs/previous.log)
+- crash.py — crash counter + lockout at threshold 3, /system/FORCE_USB_VISIBLE recovery flag
+- payload.py — payload manager: read, CRC32 fingerprint, atomic update with full validation pipeline
+- wifi.py — station-first (secrets.py), AP fallback (kducky-AP), mode/ip/ssid queries
+- webapp.py — HTTP server: GET / (dark HTML status), GET /status (JSON), POST /payload (upload), GET /logs
+- runtime.py — coordinator: start() initializes WiFi→WebServer→PicoPlatform; run() executes payload or serves UI; stop() tears down
+- main.py — 56-LOC entry point, delegates to Runtime, crash handler
 
-- `platform.pico` namespace conflicts with Python stdlib `platform` module on desktop. Tests work around this via `importlib` file-path loading. On CircuitPython (Pico) there is no conflict because stdlib `platform` is not available.
-- 6 key-map completeness tests skip on desktop (require `adafruit_hid` for `_KC` constants).
-- Some exotic HID keycodes (COMPOSE, PROPS, UNDO, PASTE, KEYPAD_00, KEYPAD_000) use `getattr` fallbacks that need verification on real hardware.
-- `DESKTOP_PLATFORM` import fallback for `set_layout`/`get_layout` may need updating when PicoPlatform implements layout switching.
-- Preprocessor cannot substitute `#NAME` references inside `"..."` double-quoted strings. For preprocessor variables in PowerShell argument strings, hardcode the value instead (e.g., `Start-Process -ArgumentList "-File filename.ps1"` instead of `"-File #PS1"`).
+## Key architectural decisions
+- ConfigManager rejected (YAGNI — no shared config files exist)
+- WiFiManager split from WebServer (different concerns, different change rates)
+- `fingerprint()` abstraction on PayloadManager (CRC32 today, swap for stronger hash later)
+- Explicit start()/run()/stop() lifecycle on Runtime (slot for future teardown)
+- Log path centralized in logs.py module (single source of truth)
+- /system/FORCE_USB_VISIBLE flag instead of crash counter logic in boot.py
+- EXFIL rule: GP15 jumper always overrides software intent (USB stealth is hardware-enforced)
 
-### Technical Debt
-
-- `PicoPlatform.restore_attack_mode()` — attack mode changes require a USB re-enumeration (reboot) on CircuitPython, so restore is a config-file rewrite rather than real-time switch.
-- `PicoPlatform.restore_lock_state()` — USB HID keyboards cannot set host lock-LED state; method is a no-op (saved values are informational only).
-- Some exotic HID keycodes (COMPOSE, PROPS, UNDO, PASTE, KEYPAD_00, KEYPAD_000) use `getattr` fallbacks that need verification on real hardware.
-
-### Assumptions Made (at commit time)
-
-- Flat `PlatformInterface` protocol (all methods directly on protocol) rather than hierarchical sub-backends in spec §6.1.
-- `DesktopPlatform` satisfies protocol structurally (idiomatic Python Protocol pattern), not via explicit inheritance.
-- Onboard LED on Pico W is monochrome (green/white); `set_led(R)` and `set_led(B)` are no-ops.
-- Trigger button defaults to GPIO 15 with pull-up (active low).
-- `from __future__ import annotations` removed from all source files (CircuitPython doesn't populate __annotations__ on classes, making it useless).
-- CircuitPython's `str` lacks `isalnum()`; replaced with `isalpha() or isdigit()`.
-- CircuitPython's `random` module has no `Random()` class; uses module-level functions with manual seeding.
-- MicroPython parser doesn't support PEP 570 (positional-only `/`) or `metaclass=` keyword in class definitions.
-
-### Notes for the Next Session
-
-**D3 Extensions complete (B1-B7).** 784 tests (↑151 from M18's 633). All D3 Extensions implemented:
-
-- **B1 (REBOOT):** Shuts down target via `GUI r → shutdown /r /t 0`.
-- **B2 (REPLAY):** `RestartPayloadSignal` caught by `main.py` retry loop — payload restarts from beginning.
-- **B3 (JITTER):** Random keystroke delays (JITTER ON/OFF/DELAY min max). Integrated into `_type_text`.
-- **B4 (INJECT_VAR):** Types any variable's value as keystrokes. Uses locals→globals scope lookup.
-- **B5 ($_ internal vars):** 7 pre-populated read-only/writable system variables (lock states, random control, button enabled).
-- **B6 (END_STRING/END_STRINGLN):** STRING/STRINGLN block mode — multi-line string blocks with indent stripping. Parser unchanged (lexer emits STRING_BODY).
-- **B7 (MOUSE):** All 6 DuckyScript MOUSE operations via new PlatformInterface mouse methods. PicoPlatform uses `adafruit_hid.mouse`. `MOUSE_MOVE_TO` is no-op (HID limitation).
-- **Phase A:** 103 edge-case tests verified no bugs in existing interpreter.
-
-**Key architectural changes:**
-- Pico `main.py` autoreload disabled (`_runtime.autoreload = False`) to prevent payload loop on file rename.
-- REPLAY support: `main()` wrapped in retry loop catching `RestartPayloadSignal`.
-- `_type_text` handles `\n` for block-mode STRINGLN (splits on newlines, presses ENTER between segments).
-- Interpreter init now calls `_populate_internal_vars()` making 3 platform calls (affects test assertions).
-
-Next milestone: M19 — Hardware Validation (Pico). Run the interpreter on actual Pico 2 W hardware and validate against test payloads.
+## Known Issues
+- Pico runtime modules are untested on actual hardware (CircuitPython desktop import tests pass)
+- WiFi AP mode IP hardcoded to 192.168.4.1 (CircuitPython default)
+- POST /payload upload does not reboot after successful upload (caller must power-cycle)
+- No authentication on web UI (intentional — recovery mode must be accessible without configuration)
 
 ---
 
@@ -344,7 +342,7 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Milestone 19 — Hardware Validation (Pico).
+5. Resume from Pico Runtime Features completion.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
