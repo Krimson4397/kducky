@@ -3,6 +3,7 @@
 Manages the startup -> run -> shutdown lifecycle.
 """
 
+import time
 from platform.pico import backends, logger, payload
 from platform.pico.mode import EXECUTABLE_MODES, MODE_EWOS
 
@@ -75,6 +76,7 @@ class Runtime:
             return
 
         platform.set_led(LedState.G)
+        time.sleep(1.25)  # ponytail: give host time to enumerate HID
 
         source: str = payload.read()
         if not source:
