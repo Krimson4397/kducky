@@ -10,7 +10,7 @@
 **Purpose:** A modular, portable DuckyScript 3 interpreter that runs on the Raspberry Pi Pico 2 W, allowing users to execute USB Rubber Ducky payloads from an embedded microcontroller.  
 **Target hardware:** Raspberry Pi Pico 2 W (RP2350) — CircuitPython 10.x  
 **Supported language:** DuckyScript 3 (Hak5 USB Rubber Ducky language) with project extensions  
-**Current status:** KISS runtime (WiFi removed) — payload-only execution. Post-payload WiFi retrieval planned.  
+**Current status:** Payload-only execution on 3 GPIO-selected boot modes (NS / EWOS / EWIS).  
 **High-level architecture:** Language modules (Lexer → Parser → AST → Interpreter) communicate through well-defined interfaces and are fully decoupled from hardware. A PlatformInterface layer abstracts all hardware I/O, enabling the same interpreter code to run on desktop CPython (for development and testing) and on CircuitPython (for production). The language core never imports CircuitPython.
 
 ---
@@ -153,204 +153,93 @@ This section **must** be updated at the completion of every milestone. It descri
 
 ### Handoff Summary
 
-| Field                 | Value                            |
-| --------------------- | -------------------------------- |
-| Project Version       | 1.0.0                            |
-| Completed Feature     | Boot mode refactor: NS / EWOS / EWIS via GP0+GP15 GPIO (3 modes, crash lockout removed) |
-| Current Branch        | main                             |
-| Last Commit           | 830de98                          |
-| Repository Status     | Refactor committed; unrelated pre-existing edits remain in working tree (payloads/payload.dd, src/ducky/preprocessor.py, tests/test_preprocessor.py) — not part of this task |
-| Next Milestone        | Post-payload WiFi retrieval (see plans/Post_Payload_WiFi_Plan.md) |
-| Blocking Issues       | Pre-existing uncommitted changes in working tree (not introduced by this task) |
-| Ready to Continue     | YES (awaiting user approval) |
+| Field             | Value                                                                   |
+| ----------------- | ----------------------------------------------------------------------- |
+| Project Version   | 1.0.0                                                                   |
+| Completed Feature | 3-mode boot (NS / EWOS / EWIS), bugfixes, EWOS default, 1.25s HID delay |
+| Current Branch    | main                                                                    |
+| Last Commit       | 27357c1                                                                 |
+| Repository Status | Clean — all files committed and pushed to origin/main                   |
+| Next Milestone    | (post-payload WiFi retrieval — see plans/Post_Payload_WiFi_Plan.md)     |
+| Blocking Issues   | None                                                                    |
+| Ready to Continue | YES (awaiting user approval)                                            |
 
-### Files Created
+### Boot Modes (Current)
 
-- `plans/Pico_Runtime_Features_Plan.md` — Design document for Pico runtime features
-- `plans/Post_Payload_WiFi_Plan.md` — Design plan for post-payload WiFi retrieval
-- `src/platform/pico/logger.py` — Rotating dual-file log (`/logs/latest.log`, `/logs/previous.log`)
-- `src/platform/pico/crash.py` — Crash counter + lockout manager (threshold=3, `/system/` state files)
-- `src/platform/pico/payload.py` — Payload manager with CRC32 fingerprint, atomic update with validate
-- `src/platform/pico/wifi.py` — WiFi connection manager (station-first, AP fallback, secrets.py)
-- `src/platform/pico/webapp.py` — HTTP server (GET /, GET /status, POST /payload, GET /logs)
-- `src/platform/pico/runtime.py` — Runtime coordinator with start()/run()/stop() lifecycle
-- `src/platform/pico/mode.py` — Pure-logic boot mode selection (NS / EWOS / EWIS) from GP0+GP15 GPIO; `select_mode` + `is_executable` + `EXECUTABLE_MODES`; no CircuitPython imports (refactor)
-- `tests/test_mode.py` — 9 pytest tests for `mode.select_mode` and `mode.is_executable` (pure logic, no hardware)
+Three modes selected by two GPIO jumpers (GP0, GP15), each a pulled-up input that reads HIGH when no jumper is present and LOW when jumped to GND:
 
-### Files Modified
+| GP0  | GP15 | Mode           | Behavior                                                                                                  |
+| ---- | ---- | -------------- | --------------------------------------------------------------------------------------------------------- |
+| high | high | **EWOS** (default) | Payload runs, HID active, MSC visible read-only to host. Pico writes via `storage.remount(readonly=False)`. |
+| low  | high | EWOS           | Same as default.                                                                                          |
+| high | low  | EWIS           | Payload runs, HID active, MSC hidden via `storage.disable_usb_drive()`.                                     |
+| low  | low  | NS             | Safe fallback. No payload, MSC visible host read-write, no HID. Serial console enabled.                   |
 
-- `src/platform/pico/boot.py` — Rewritten (3-mode refactor): reads GP0+GP15, calls `mode.select_mode`, writes /system/boot_reason, configures USB HID + storage per NS/EWOS/EWIS; removed crash lockout + /system/FORCE_USB_VISIBLE; imports `from platform.pico.mode import ...` (absolute, not relative — /boot.py runs as top-level module on hardware)
-- `src/platform/pico/main.py` — `_crash_handler` renamed to `_handle_error`: logs + re-raises, no crash counting/lockout; `supervisor.runtime.autoreload = False` and Runtime lifecycle retained
-- `src/platform/pico/runtime.py` — Removed `_is_stealth`, all `crash.*` calls, recovery branch; `start()` creates PicoPlatform only when `self._boot_reason in EXECUTABLE_MODES`; `run()` logs + re-raises on exception, no `crash.reset()`
+- **EWOS** is the no-jumper default. Payloads execute AND can save files to the Pico filesystem; the host can read/edit files on the MSC drive between runs.
+- **EWIS** is true USB stealth — no drive appears on the host. Payload still runs.
+- **NS** is developer mode — drive visible, serial console for code upload, no HID.
 
-### Files Deleted (WiFi Removal)
+### Runtime Behavior
 
-- `src/platform/pico/wifi.py` — DELETED
-- `src/platform/pico/webapp.py` — DELETED
-- `src/platform/pico/runtime.py` — Stripped of all WiFi/web imports and logic; simplified to just payload execution
+- All payload execution starts after a **1.25-second `time.sleep()`** in `_run_payload_pipeline()` (runtime.py:79), giving the host time to enumerate the HID keyboard device.
+- `ATTACKMODE` is a no-op on Pico (CircuitPython USB descriptors are fixed at boot — set in `boot.py`, never changed at runtime).
+- After payload completion in EWOS mode, `Runtime.stop()` remounts the filesystem host-writable so results can be copied off without power-cycling to NS.
 
-### Files Deleted (Boot Mode Refactor)
+### Key Files
 
-- `src/platform/pico/crash.py` — DELETED (crash counter + lockout manager removed; pure GPIO selection replaces it)
+| File                          | Purpose                                                                                                                      |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `src/platform/pico/mode.py`     | Pure-logic mode selection: `select_mode(gp0_high, gp15_high)`, `is_executable(mode)`, `EXECUTABLE_MODES`. Importable on desktop.   |
+| `src/platform/pico/boot.py`     | CircuitPython boot.py: reads GP0+GP15, calls `select_mode`, writes `/system/boot_reason`, configures USB HID + storage per mode. |
+| `src/platform/pico/runtime.py`  | Lifecycle coordinator: `start()` → `run()` (payload pipeline) → `stop()` (teardown + EWOS host-writable remount).                  |
+| `src/platform/pico/main.py`     | Entry point: creates Runtime, delegates lifecycle. `_handle_error` logs + re-raises (no crash counter).                        |
+| `src/platform/pico/backends.py` | `PicoPlatform` class implementing all 26 `PlatformInterface` methods. Guarded imports (`_HAS_HW`) for desktop testability.         |
+| `src/platform/pico/logger.py`   | Rotating dual-file log (`/logs/latest.log`, `/logs/previous.log`).                                                               |
+| `src/platform/pico/payload.py`  | Payload file manager: `read()`, `exists()`, CRC32 `fingerprint()`, atomic `update()` with validate.                                  |
+| `tests/test_mode.py`            | 9 pure-logic tests for mode selection and executability.                                                                     |
 
 ### Previously Committed (da5be05) — Interpreter fixes from hardware validation
 
-- `src/ducky/lexer.py` — REM_BLOCK: skip leading whitespace before END_REM check (fixes indented `END_REM`)
-- `src/ducky/parser.py` — Pratt parser: replaced 12-method recursive cascade with iterative precedence climbing (fixes pystack exhaustion on CircuitPython); WINDOWS keyword → StringExpr fallthrough; blank line before block terminator fix
-- `src/ducky/interpreter.py` — $_ vars auto-create on assign/read (default 0); StringExpr/IdentifierExpr/HashIdentifierExpr visitors return 0; ExtensionStmt revert to skip (auto-create-on-read handles missing §_ vars)
-- `tests/test_interpreter_core.py` — Updated for StringExpr behavior change
+- `src/ducky/lexer.py` — REM_BLOCK: skip leading whitespace before END_REM check
+- `src/ducky/parser.py` — Pratt parser: iterative precedence climbing (fixes pystack exhaustion on CircuitPython); WINDOWS keyword → StringExpr fallthrough; blank line before block terminator
+- `src/ducky/interpreter.py` — $_ vars auto-create on assign/read (default 0); StringExpr/IdentifierExpr/HashIdentifierExpr visitors return 0; ExtensionStmt revert to skip
+- `tests/test_interpreter_core.py` — Updated for StringExpr behavior
 - `tests/test_parser_edge_cases.py` — Updated for new parser behaviors
+
+### Bugs Fixed (commit afb60fc)
+
+1. **ATTACKMODE no-op** — `set_attack_mode()` is now an explicit no-op with ponytail comment (CircuitPython USB descriptors fixed at boot). `save_attack_mode` returns `("HID",)` directly instead of reading the never-written `/attack_mode.cfg`.
+2. **`hide_payload`/`restore_payload`** — Removed redundant `storage.remount()` and silent `except` swallows. Errors now propagate to `_handle_error`.
+3. **EWOS post-run host-writable** — `Runtime.stop()` remounts filesystem host-writable after payload completes in EWOS mode.
+4. **Serial console in stealth** — `usb_cdc.enable()` gated on NS mode only. EWOS/EWIS skip it.
 
 ### Tests Executed
 
-- `python -m pytest tests/ -x -q` — **793 passed, 6 skipped** (784 baseline + 9 new test_mode tests)
+- `python -m pytest tests/ -x -q` — **793 passed, 6 skipped** (6 skipped are `_HAS_HW`-gated keycode map tests)
 - `ruff check src/ tests/` — All checks passed
 
-### Acceptance Criteria Completed
+### User Validation
 
-- [x] Single `PicoPlatform` class implements flat `PlatformInterface` protocol (all 26 methods)
-- [x] Guarded imports allow module import on desktop (`_HAS_HW` is `False`)
-- [x] `_ACTION_KEY_MAP` covers all 69 `ActionKey` members (with `getattr` fallbacks for uncommon keycodes like KEYPAD_00)
-- [x] `_MODIFIER_KEY_MAP` covers all 8 `ModifierKey` members
-- [x] Contract tests verify interface compliance structurally without hardware
-- [x] `boot.py` configures USB HID + optional storage disable
-- [x] `main.py` is a drop-in runner for auto-execution on Pico
-- [x] Signal methods (`restart_payload`, `stop_payload`) raise correct exceptions
-- [x] All 549 tests pass, ruff clean
-- [x] 16 keyboard layout JSON files (US + 15 international) under `src/ducky/layouts/`
-- [x] Layout loader module (`load`, `available`, `add_layout`) with caching and US-fallback inheritance
-- [x] `set_layout`/`get_layout` added to `PlatformInterface` protocol
-- [x] `DesktopPlatform` implements `set_layout`/`get_layout` with call recording
-- [x] `PicoPlatform.type_string` rewritten to use `Layout.keycode_for()` instead of `KeyboardLayoutUS`
-- [x] `visit_DuckyLangStmt` in interpreter calls `platform.set_layout()`
-- [x] 9 layout tests pass (layout loading, inheritance, case insensitivity, platform, interpreter)
-- [x] All 558 tests pass, ruff clean
-- [x] HOLD/RELEASE accept `ModifierKey` (key type widened from `ActionKey` to `object`)
-- [x] INJECT_MOD required before HOLD of modifier key, NOT required before RELEASE (per official Hak5 docs)
-- [x] Engineering Spec §5.3 updated with official holding-keys example
-- [x] `_inject_mod_pending` flag in parser tracks INJECT_MOD state across statements
-- [x] `PicoPlatform._hid_keycode_for` handles `ModifierKey` instances
-- [x] 7 new parser tests cover all HOLD/RELEASE modifier scenarios
-- [x] Interpreter integration test verifies end-to-end SHIFT modifier sequence
-- [x] All 565 tests pass, ruff clean
-- [x] `src/ducky/preprocessor.py` created with `Preprocessor` class and `PreprocessorError`
-- [x] Preprocessor scans source for `DEFINE #NAME value` lines (case-insensitive keyword)
-- [x] DEFINE lines replaced with blank lines to preserve source line numbering
-- [x] `#NAME` references substituted with literal values in all subsequent lines
-- [x] Substitution skipped inside `"..."` quoted strings (handles `\"` escapes)
-- [x] Undefined `#NAME` reference raises `PreprocessorError` with line number
-- [x] `DEFINE #DELAY 2000` + `DELAY #DELAY` produces `DELAY 2000`
-- [x] `DEFINE #TEXT Hello World` + `STRINGLN #TEXT` types "Hello World"
-- [x] `DEFINE #X` with no value yields empty string for `#X`
-- [x] Preprocessor integrated into integration test pipeline (`_execute` helper)
-- [x] 25 preprocessor-specific tests pass
-- [x] 3 new integration tests for DEFINE
-- [x] Pico runner `main.py` calls Preprocessor before Lexer (architectural fix)
-- [x] `DefineStmt` AST node class removed — DEFINE is exclusively preprocessor-only
-- [x] `TokenType.DEFINE` removed from lexer — no token path for DEFINE exists
-- [x] Parser no longer has `_parse_define_stmt` — no AST path for DEFINE exists
-- [x] All existing parser/lexer tests updated to remove DEFINE references
-- [x] All 587 tests pass, ruff clean
-- [x] `src/ducky/errors.py` created with `DuckyError` base class
-- [x] All four error types (`LexerError`, `ParseError`, `InterpreterError`, `PreprocessorError`) inherit from `DuckyError`
-- [x] Standard format `[ERROR] line N, col M: message` for `LexerError` and `ParseError`
-- [x] Standard format `[ERROR] line N: message` for `PreprocessorError`
-- [x] Standard format `[ERROR] message` for `InterpreterError` (no line/col from AST)
-- [x] Backward compatibility: `from ducky.lexer import LexerError` (etc.) still works
-- [x] `InterpreterError` retained (not renamed to `RuntimeError` — Python built-in conflict)
-- [x] `source_snippet` and `cause` stored as attributes, not included in `str()`
-- [x] All 22 error-hierarchy tests pass
-- [x] All 615 tests pass, ruff clean
-- [x] All 13 missing interpreter visitor methods implemented in `interpreter.py`
-- [x] `visit_LedStmt` — calls `platform.set_led()` for all 4 LedState values (OFF/R/G/B)
-- [x] `visit_AttackModeStmt` — calls `platform.set_attack_mode(params)`
-- [x] `visit_SaveAttackModeStmt` / `visit_RestoreAttackModeStmt` — save/restore attack mode
-- [x] `visit_SaveHostLockStateStmt` / `visit_RestoreHostLockStateStmt` — save/restore lock state
-- [x] `visit_WaitForKeyStmt` — polls platform getter until target lock key state (ON/OFF/CHANGE)
-- [x] `visit_ButtonDefStmt` — registered in phase-1 like FunctionDef, skipped in phase-2
-- [x] `visit_EnableButtonStmt` / `visit_DisableButtonStmt` — calls platform enable/disable
-- [x] `visit_WaitForButtonPressStmt` — calls `platform.wait_for_button_press()`
-- [x] `visit_HidePayloadStmt` / `visit_RestorePayloadStmt` — calls platform hide/restore
-- [x] 18 tests covering all 13 visitors pass
-- [x] `payloads/payload.dd` updated — runs to completion, types "all_done" as last line
-- [x] `deploy.py` copies `payload.dd` to CIRCUITPY drive
-- [x] Full suite: 633 tests pass, ruff clean, working tree clean
-- [x] **B1: REBOOT** — `reboot_target()` sends GUI r → shutdown /r /t 0; full pipeline (token → AST → parser → interpreter → PicoPlatform)
-- [x] **B2: REPLAY** — `ReplayStmt` raises `RestartPayloadSignal`; `main.py` retry loop catches signal and restarts
-- [x] **B3: JITTER** — `JITTER ON/OFF/DELAY min max`; `_maybe_jitter()` adds random per-char delay; integrated into `_type_text`
-- [x] **B4: INJECT_VAR** — `INJECT_VAR $name` types variable value as keystrokes; searches locals → globals; keyboard error guard
-- [x] **B5: $_ internal variables** — `_populate_internal_vars()` pre-populates `$_IS_CAPSLOCK_ON`, `$_IS_NUMLOCK_ON`, `$_IS_SCROLLLOCK_ON` (from platform), `$_RANDOM_MIN=0`, `$_RANDOM_MAX=65535`, `$_RANDOM_INT=0`, `$_BUTTON_ENABLED=1`
-- [x] **B6: END_STRING** — STRING/STRINGLN block mode: no inline body → enter block, read lines until `END_STRING`/`END_STRINGLN`, strip leading whitespace, join STRING with `""` or STRINGLN with `"\n"`, `_type_text` handles `\n` by pressing ENTER
-- [x] **B7: MOUSE** — All 6 variants (MOUSE_MOVE, MOUSE_MOVE_TO, MOUSE_CLICK, MOUSE_DOWN, MOUSE_UP, MOUSE_SCROLL) through full pipeline; LEFT/RIGHT/MIDDLE buttons via existing tokens + IDENTIFIER("MIDDLE"); PicoPlatform uses `adafruit_hid.mouse`; `mouse_move_to` is HID no-op
-- [x] Phase A: 103 edge-case tests (error recovery, nested functions, recursion, nested loops, variable shadowing, overflow, REPEAT corners, function registration)
-- [x] **Full suite: 784 tests pass, ruff clean, working tree clean**
-- [x] **REM_BLOCK whitespace:** Lexer skips leading whitespace before END_REM check (fixes indented END_REM in payloads)
-- [x] **Pratt parser:** Single iterative `_parse_expression(min_precedence)` replaces 12-method recursive cascade (stack depth per paren nesting: 12→1)
-- [x] **WINDOWS keyword as StringExpr:** `_parse_primary` fallthrough converts keyword tokens to StringExpr (e.g., `$_OS = WINDOWS`)
-- [x] **Blank line before block terminator:** NEWLINEs skipped inside `_parse_statements_until` loop before stop-token check
-- [x] **$_ vars auto-create on assign:** Top-level `$_OS = ...` auto-creates `$_`-prefixed vars in globals
-- [x] **$_ vars auto-create on read:** Undeclared `$_`-prefixed read returns 0 (FALSE)
-- [x] **Expression visitor stubs:** `visit_StringExpr`, `visit_IdentifierExpr`, `visit_HashIdentifierExpr` all return 0
-- [x] **boot.py:** 4 boot modes from GPIO jumpers (GP0+GP15), /system/FORCE_USB_VISIBLE override, writes /system/boot_reason
-- [x] **logger.py:** Rotating dual-file log (`/logs/latest.log` + `/logs/previous.log`), module-level guard flag, try/except for all OSError
-- [x] **crash.py:** Crash counter at /system/crash_count, LOCKOUT_THRESHOLD=3, force_visible()/clear_force_visible() for recovery, set_last_error()
-- [x] **payload.py:** payload.content()/exists()/fingerprint() (CRC32 via binascii.crc32), update() with atomic write→validate→rename, delete()
-- [x] **wifi.py:** Station-first (secrets.py ssid/password), AP fallback (kducky-AP/ducky123), start()/stop()/is_connected()/mode()/ip()/ssid()
-- [x] **webapp.py:** HTTP server with GET / (dark HTML status), GET /status (JSON), POST /payload (upload+validate+reset crashes), GET /logs; non-blocking serve_once() poll loop
-- [x] **runtime.py:** Coordinator with start()→WiFi→WebServer ordering→PicoPlatform→run() payload pipeline (preprocess→lex→parse→interpret with REPLAY/STOP support)→stop() teardown
-- [x] **main.py:** Minimal entry point (56 LOC), delegates to Runtime, _crash_handler for crash counting/logging
-- [x] Full suite: 784 tests pass, ruff clean
-- [x] **Boot mode refactor:** 3 modes (NS / EWOS / EWIS) via GP0+GP15 GPIO — pure GPIO selection, NO crash lockout, NO FORCE_USB_VISIBLE
-- [x] `src/platform/pico/mode.py` — pure-logic `select_mode(gp0_high, gp15_high)` + `is_executable(mode)` + `EXECUTABLE_MODES`; imports safely on desktop (no CircuitPython imports)
-- [x] `boot.py` rewritten — reads GP0+GP15, calls `mode.select_mode`, writes /system/boot_reason, configures USB per mode (NS: defaults; EWOS: HID + remount read-only-from-host; EWIS: HID + disable_usb_drive); imports `from platform.pico.mode import` (absolute — `/boot.py` runs top-level on hardware, relative import would fail)
-- [x] `main.py` — `_crash_handler` → `_handle_error`: logs + re-raises only, no crash counter/lockout
-- [x] `runtime.py` — removed `_is_stealth`, all `crash.*` calls, recovery branch; `start()` creates PicoPlatform only when `boot_reason in EXECUTABLE_MODES`; `run()` logs + re-raises on exception
-- [x] `crash.py` DELETED; grep confirms no remaining `crash`/`force_visible`/`should_lockout`/`crash_count`/`last_error`/`FORCE_USB_VISIBLE` references in `src/` or `tests/`
-- [x] `tests/test_mode.py` — 9 pytest tests (3 GPIO input combinations × select_mode, 4 is_executable cases, EXECUTABLE_MODES set equality)
-- [x] Full suite: 793 tests pass, ruff clean
+- Payload execution on Pico confirmed working (EWOS).
+- Payload can save files to Pico filesystem; host can read/edit files manually between runs.
+- No regressions observed.
+
+---
 
 ## 9. Next Session — What to Build
 
-**Pico Runtime Features complete.** 784 tests pass (unchanged from baseline). All hardware validation fixes from NullSec payload testing applied.
+The kducky project is currently in a stable state with a fully working interpreter and 3-mode boot runtime. The post-payload WiFi retrieval plan exists in `plans/Post_Payload_WiFi_Plan.md` but is not yet implemented.
 
-## What was built
-
-8 interpreter fixes + 8 Pico runtime modules:
-
-**Interpreter fixes** (committed in da5be05):
-- REM_BLOCK whitespace — indented END_REM now terminates block comments
-- Pratt parser — pystack exhaustion fixed for deeply nested WHILE(...) expressions
-- WINDOWS keyword as StringExpr — keyword tokens can appear in value positions
-- Blank line before block terminator — any block terminator preceded by blank line now parses
-- $_ vars auto-create on assign — `$_OS = ...` works without prior VAR $OS
-- $_ vars auto-create on read — undeclared `$_` var reads return 0 (FALSE)
-- Expression visitor stubs — StringExpr/IdentifierExpr/HashIdentifierExpr all return 0
-- ExtensionStmt phase-2 skip — auto-create-on-read handles missing vars instead of double-executing extensions
-
-**Pico Runtime** (committed in fb5bc7a):
-- boot.py — 4 boot modes from GPIO jumpers (GP0=setup, GP15=stealth, both=dev, none=development)
-- logger.py — rotating dual-file log (/logs/latest.log + /logs/previous.log)
-- crash.py — crash counter + lockout at threshold 3, /system/FORCE_USB_VISIBLE recovery flag
-- payload.py — payload manager: read, CRC32 fingerprint, atomic update with full validation pipeline
-- wifi.py — station-first (secrets.py), AP fallback (kducky-AP), mode/ip/ssid queries
-- webapp.py — HTTP server: GET / (dark HTML status), GET /status (JSON), POST /payload (upload), GET /logs
-- runtime.py — coordinator: start() initializes WiFi→WebServer→PicoPlatform; run() executes payload or serves UI; stop() tears down
-- main.py — 56-LOC entry point, delegates to Runtime, crash handler
-
-## Key architectural decisions
-- ConfigManager rejected (YAGNI — no shared config files exist)
-- WiFiManager split from WebServer (different concerns, different change rates)
-- `fingerprint()` abstraction on PayloadManager (CRC32 today, swap for stronger hash later)
-- Explicit start()/run()/stop() lifecycle on Runtime (slot for future teardown)
-- Log path centralized in logs.py module (single source of truth)
-- /system/FORCE_USB_VISIBLE flag instead of crash counter logic in boot.py
-- EXFIL rule: GP15 jumper always overrides software intent (USB stealth is hardware-enforced)
-
-## Known Issues
-- Pico runtime modules are untested on actual hardware (CircuitPython desktop import tests pass)
-- WiFi AP mode IP hardcoded to 192.168.4.1 (CircuitPython default)
-- POST /payload upload does not reboot after successful upload (caller must power-cycle)
-- No authentication on web UI (intentional — recovery mode must be accessible without configuration)
+Current capabilities:
+- DuckyScript 3 interpreter (full language spec) with ~800 passing tests
+- 3 GPIO-selected boot modes: EWOS (default, payload + visible MSC), EWIS (stealth), NS (dev)
+- 1.25s HID enumeration delay before payload execution
+- Payload pipeline: Preprocessor → Lexer → Parser → Interpreter → PicoPlatform (HID)
+- Preprocessor with `DEFINE` support
+- Keyboard layouts (US + 15 international)
+- All DuckyScript 3 statements implemented (REBOOT, REPLAY, JITTER, INJECT_VAR, $_ vars, END_STRING block mode, MOUSE, HOLD/RELEASE, etc.)
+- Rotating log, payload file manager
+- Desktop test suite with structural `PlatformInterface` contract tests
 
 ---
 
@@ -364,9 +253,22 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Boot mode refactor (3-mode NS / EWOS / EWIS via GP0+GP15 GPIO) completion.
 
-Boot modes are now: NS (no payload, MSC visible) / EWOS (payload, HID, MSC read-only) / EWIS (payload, HID, MSC hidden), selected by GP0+GP15 GPIO jumpers. Crash lockout and FORCE_USB_VISIBLE were removed — boot modes are pure GPIO selection (see src/platform/pico/mode.py).
+Current boot modes (GP0+GP15 GPIO, both pulled high by default, jumper-to-GND = LOW):
+
+  GP0  GP15  Mode   Description
+  high high  EWOS   No-jumper default — payload runs, HID, MSC read-only to host
+  low  high  EWOS   Same behavior as default
+  high low   EWIS   Payload runs, HID, MSC hidden (usb drive disabled)
+  low  low   NS     Safe fallback — no payload, MSC visible, serial console
+
+Key architectural notes:
+- `mode.py` contains pure-logic select_mode/is_executable — no CircuitPython imports
+- `boot.py` runs as top-level module on hardware (absolute imports: from platform.pico.mode)
+- ATTACKMODE is a no-op on Pico (USB descriptors set at boot, not runtime)
+- 1.25s delay in _run_payload_pipeline() before any HID keystrokes
+- EWOS: Pico writes via storage.remount(readonly=False); host reads via MSC read-only
+- crash/lockout/FORCE_USB_VISIBLE were removed — mode selection is pure GPIO
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
