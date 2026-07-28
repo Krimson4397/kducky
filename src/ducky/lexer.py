@@ -494,9 +494,9 @@ class DuckyLexer:
 
     @staticmethod
     def _check_line_length(line: int, col: int) -> None:
-        """Raise ``LexerError`` if the current line exceeds 256 characters."""
-        if col > 257:
-            raise LexerError("Line exceeds 256 characters", line, 257)
+        """Raise ``LexerError`` if the current line exceeds 1024 characters."""
+        if col > 1025:
+            raise LexerError("Line exceeds 1024 characters", line, 1025)
 
     # ── Token scanning ────────────────────────────────────────────────────
 

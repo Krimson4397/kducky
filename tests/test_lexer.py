@@ -391,13 +391,13 @@ class TestErrors:
     """Lexer error conditions."""
 
     def test_line_too_long(self) -> None:
-        """Line exceeding 256 characters raises LexerError at column 257."""
-        source = "x" * 257 + "\n"
+        """Line exceeding 1024 characters raises LexerError at column 1025."""
+        source = "x" * 1025 + "\n"
         with pytest.raises(LexerError) as exc:
             tokenize(source)
-        assert "exceeds 256" in str(exc.value)
+        assert "exceeds 1024" in str(exc.value)
         assert exc.value.line == 1
-        assert exc.value.column == 257
+        assert exc.value.column == 1025
 
     def test_unterminated_string(self) -> None:
         """Unterminated " string raises LexerError."""
@@ -480,20 +480,20 @@ class TestEdgeCases:
         assert result[2] == tok(TokenType.SHIFT, "SHIFT", col=6)
         assert result[3] == tok(TokenType.ENTER, "ENTER", col=12)
 
-    def test_line_exact_256_no_error(self) -> None:
-        """A line with exactly 256 characters is valid."""
-        source = "x" * 256 + "\n"
+    def test_line_exact_1024_no_error(self) -> None:
+        """A line with exactly 1024 characters is valid."""
+        source = "x" * 1024 + "\n"
         result = tokenize(source)
         assert result[0].type is TokenType.IDENTIFIER
         assert result[1].type is TokenType.NEWLINE
         assert result[2].type is TokenType.EOF
 
-    def test_line_257_no_newline_raises(self) -> None:
-        """257 characters on a line with no newline raises at col 257."""
-        source = "x" * 257
+    def test_line_1025_no_newline_raises(self) -> None:
+        """1025 characters on a line with no newline raises at col 1025."""
+        source = "x" * 1025
         with pytest.raises(LexerError) as exc:
             tokenize(source)
-        assert exc.value.column == 257
+        assert exc.value.column == 1025
 
     def test_rem_block_ends_at_word_boundary(self) -> None:
         """'REM_BLOCK_EXTRA' should not match REM_BLOCK keyword."""

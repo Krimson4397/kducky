@@ -1,0 +1,38 @@
+ATTACKMODE HID
+
+REM Test: host-to-Pico MSC write during EWOS
+REM WMI volume label lookup — no hardcoded drive letters.
+
+GUI r
+DELAY 500
+STRINGLN powershell
+DELAY 1000
+
+REM Find DUCKY drive by volume label
+STRINGLN $d = (gwmi win32_volume -f 'label=''DUCKY''').Name
+DELAY 500
+
+REM If no DUCKY volume found, report
+STRINGLN if (-not $d) { Write-Host "FAIL: no DUCKY volume" }
+DELAY 200
+
+REM Write test file to DUCKY drive
+STRINGLN if ($d) { echo "host_write_test" | Out-File ($d + "payload_test.txt") }
+DELAY 500
+
+REM Verify file was written
+STRINGLN if ($d) { if (Test-Path ($d+"payload_test.txt")) { "SUCCESS" } else { "FAIL" } }
+DELAY 2000
+
+REM Keep typing to show HID stays active
+STRINGLN Write-Host "=== running ==="
+DELAY 300
+STRINGLN Write-Host "running..." -NoNewline; Start-Sleep -Seconds 2; " done"
+DELAY 300
+STRINGLN Write-Host "running..." -NoNewline; Start-Sleep -Seconds 2; " done"
+DELAY 300
+STRINGLN Write-Host "running..." -NoNewline; Start-Sleep -Seconds 2; " done"
+DELAY 300
+STRINGLN Write-Host "running..." -NoNewline; Start-Sleep -Seconds 2; " done"
+DELAY 300
+STRINGLN Write-Host "Test complete. Check DUCKY drive for payload_test.txt"
