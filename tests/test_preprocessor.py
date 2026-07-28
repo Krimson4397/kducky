@@ -73,26 +73,26 @@ class TestPreprocessor:
 
     # ── Quoted string protection ──────────────────────────────────────
 
-    def test_hash_in_quoted_string_not_substituted(self) -> None:
-        """#NAME inside \"...\" is NOT substituted."""
+    def test_hash_in_quoted_string_substituted(self) -> None:
+        """#NAME inside \"...\" IS substituted (matches real DuckyScript)."""
         result = self.preprocess(
             'DEFINE #X value\nSTRING "#X"\n'
         )
-        assert result == '\nSTRING "#X"\n'
+        assert result == '\nSTRING "value"\n'
 
-    def test_hash_in_expression_string_not_substituted(self) -> None:
-        """#NAME inside quoted expression string is preserved."""
+    def test_hash_in_expression_string_substituted(self) -> None:
+        """#NAME inside quoted expression string is substituted."""
         result = self.preprocess(
             'DEFINE #X 42\nVAR $a = "#X"\n'
         )
-        assert result == '\nVAR $a = "#X"\n'
+        assert result == '\nVAR $a = "42"\n'
 
-    def test_escaped_quote_in_string(self) -> None:
-        r"""Quoted string with \" escape still protects #NAME."""
+    def test_escaped_quote_in_string_substituted(self) -> None:
+        r"""Quoted string with \" escape — #NAME is still substituted."""
         result = self.preprocess(
             'DEFINE #X 42\nVAR $a = "hello \\"#X\\""\n'
         )
-        assert result == '\nVAR $a = "hello \\"#X\\""\n'
+        assert result == '\nVAR $a = "hello \\"42\\""\n'
 
     def test_hash_at_start_of_quoted_string(self) -> None:
         """# at the very start of a quoted string is not substituted."""

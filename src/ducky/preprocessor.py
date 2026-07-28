@@ -5,7 +5,7 @@ Operates on raw source text *before* lexing:
 1. Scans lines for ``DEFINE #NAME value`` declarations
 2. Replaces DEFINE lines with blank lines (preserves line numbering)
 3. Substitutes ``#NAME`` references in all other lines with their literal values
-4. Skips substitution inside ``"..."`` quoted strings
+
 """
 
 from ducky.errors import PreprocessorError
@@ -62,20 +62,7 @@ class Preprocessor:
         out: list[str] = []
         i = 0
         while i < len(line):
-            if line[i] == '"':
-                # Copy quoted string verbatim (no substitution inside)
-                j = i + 1
-                while j < len(line):
-                    if line[j] == "\\" and j + 1 < len(line):
-                        j += 2  # skip escaped character
-                    elif line[j] == '"':
-                        j += 1
-                        break
-                    else:
-                        j += 1
-                out.append(line[i:j])
-                i = j
-            elif line[i] == "#":
+            if line[i] == "#":
                 # Check for #NAME pattern
                 if i + 1 < len(line) and (
                     line[i + 1].isalpha() or line[i + 1] == "_"

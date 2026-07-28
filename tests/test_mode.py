@@ -40,8 +40,9 @@ else:
 
 
 class TestSelectMode:
-    def test_no_jumper_is_ns(self) -> None:
-        assert select_mode(True, True) == MODE_NS
+    def test_no_jumper_is_ewos(self) -> None:
+        # no-jumper default is now EWOS (payload runs, HID, MSC read-only)
+        assert select_mode(True, True) == MODE_EWOS
 
     def test_gp0_jumper_is_ewos(self) -> None:
         assert select_mode(False, True) == MODE_EWOS
