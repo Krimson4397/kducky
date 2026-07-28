@@ -13,7 +13,7 @@ Pure GPIO selection — no crash lockout, no recovery flag.
 """
 
 import os
-from platform.pico.mode import MODE_EWIS, MODE_EWOS, select_mode
+from platform.pico.mode import MODE_EWIS, MODE_EWOS, MODE_NS, select_mode
 
 try:
     import board
@@ -64,7 +64,11 @@ def _configure_usb(mode: str) -> None:
         usb_hid.enable()
         storage.disable_usb_drive()
     # MODE_NS: defaults — host-writable USB MSC, no HID
-    usb_cdc.enable()
+    # ponytail: serial console only in NS (dev/code-upload mode).
+    # Stealth/payload modes (EWOS/EWIS) skip it so the device doesn't
+    # present a non-standard serial port to the host.
+    if mode == MODE_NS:
+        usb_cdc.enable()
 
 
 if _HAS_HW:

@@ -22,7 +22,6 @@ try:
     import board
     import digitalio
     import microcontroller  # noqa: F401  — used for reset / chip info
-    import storage
     import usb_hid
     from adafruit_hid.keyboard import Keyboard
     from adafruit_hid.keycode import Keycode as _KC  # noqa: N814
@@ -462,30 +461,22 @@ class PicoPlatform:
     # ── Attack mode ──────────────────────────────────────────────────
 
     def set_attack_mode(self, params: tuple[str, ...]) -> None:
-        """Configure USB device mode.
+        """Configure USB device mode (ATTACKMODE payload statement).
 
-        Writes the parameters to an on-device config file that
-        ``boot.py`` reads on the next restart.  Changing the USB
-        descriptor requires a reboot on CircuitPython.
+        ponytail: no-op — CircuitPython USB descriptors are fixed at boot
+        before enumeration; runtime ATTACKMODE cannot re-enumerate.
+        Signature kept intact: interpreter/contract tests call it.
         """
-        # ponytail: writes config for boot.py to consume on next restart
-        try:
-            with open("/attack_mode.cfg", "w") as f:
-                for param in params:
-                    f.write(param + "\n")
-        except OSError:
-            pass  # ponytail: filesystem may be readonly
+        # no-op: see ponytail note above
+        _ = params
 
     def save_attack_mode(self) -> None:
-        """Save the current attack mode configuration."""
-        # ponytail: save current mode params for later restore
-        try:
-            with open("/attack_mode.cfg") as f:
-                self._saved_attack_mode = tuple(
-                    line.strip() for line in f if line.strip()
-                )
-        except OSError:
-            self._saved_attack_mode = ("HID",)
+        """Save the current attack mode configuration.
+
+        ponytail: returns default — set_attack_mode is a no-op so there's
+        nothing live to snapshot; pair kept for symmetry with restore.
+        """
+        self._saved_attack_mode = ("HID",)
 
     def restore_attack_mode(self) -> None:
         """Restore a previously saved attack mode configuration."""
@@ -503,22 +494,22 @@ class PicoPlatform:
         raise StopPayloadSignal()
 
     def hide_payload(self) -> None:
-        """Hide the payload file from mass storage (dot-prefix rename)."""
+        """Hide the payload file from mass storage (dot-prefix rename).
+
+        ponytail: no storage.remount — boot.py already remounted python-
+        writable in EWOS, and in EWIS MSC is hidden so Python has full
+        access.  OSErrors propagate to main.py._handle_error (logged).
+        """
         hidden_path = "/" + _HIDDEN_PREFIX + "payload.dd"
-        try:
-            storage.remount("/", readonly=False)
-            _os.rename(_PAYLOAD_PATH, hidden_path)
-        except (OSError, RuntimeError):
-            pass  # ponytail: file may already be hidden
+        _os.rename(_PAYLOAD_PATH, hidden_path)
 
     def restore_payload(self) -> None:
-        """Restore a previously hidden payload file to visibility."""
+        """Restore a previously hidden payload file to visibility.
+
+        ponytail: see hide_payload — no remount, errors propagate.
+        """
         hidden_path = "/" + _HIDDEN_PREFIX + "payload.dd"
-        try:
-            storage.remount("/", readonly=False)
-            _os.rename(hidden_path, _PAYLOAD_PATH)
-        except (OSError, RuntimeError):
-            pass  # ponytail: hidden file may not exist
+        _os.rename(hidden_path, _PAYLOAD_PATH)
 
     # ── Reboot ───────────────────────────────────────────────────────
 

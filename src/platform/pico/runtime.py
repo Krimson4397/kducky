@@ -4,9 +4,14 @@ Manages the startup -> run -> shutdown lifecycle.
 """
 
 from platform.pico import backends, logger, payload
-from platform.pico.mode import EXECUTABLE_MODES
+from platform.pico.mode import EXECUTABLE_MODES, MODE_EWOS
 
 from ducky.ast import LedState
+
+try:
+    import storage as _storage
+except ImportError:
+    _storage = None  # noqa: N816 — desktop test env
 
 
 def _read_boot_reason() -> str:
@@ -113,4 +118,12 @@ class Runtime:
                 self._platform.deinit()
             except Exception:
                 pass
+        # ponytail: after EWOS, host still sees a readonly drive — remount
+        # host-writable so results can be copied off without power-cycling
+        # to NS.  Non-fatal: a remount hiccup never stops shutdown.
+        if self._boot_reason == MODE_EWOS and _storage is not None:
+            try:
+                _storage.remount("/", readonly=True)
+            except (OSError, RuntimeError) as e:
+                logger.write_line(f"[runtime] WARN remount-to-host-writable failed: {e}")
         logger.write_line("[runtime] shutdown complete")
