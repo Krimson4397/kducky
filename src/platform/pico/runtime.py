@@ -3,7 +3,8 @@
 Manages the startup -> run -> shutdown lifecycle.
 """
 
-from platform.pico import backends, crash, logger, payload
+from platform.pico import backends, logger, payload
+from platform.pico.mode import EXECUTABLE_MODES
 
 from ducky.ast import LedState
 
@@ -17,11 +18,6 @@ def _read_boot_reason() -> str:
         return "unknown"
 
 
-def _is_stealth(boot_reason: str) -> bool:
-    """Return True if USB mass storage should be hidden."""
-    return boot_reason in {"development"}
-
-
 class Runtime:
     """Runtime coordinator for kducky Pico 2 W."""
 
@@ -31,18 +27,10 @@ class Runtime:
         self._stopped: bool = False
 
     def start(self) -> None:
-        """Initialize all subsystems."""
+        """Initialize subsystems. PicoPlatform only in executable modes."""
         logger.write_line(f"[runtime] boot: {self._boot_reason}")
-        is_recovery: bool = crash.should_lockout()
-
-        if is_recovery:
-            logger.write_line("[runtime] crash lockout — entering recovery mode")
-            crash.force_visible()
-
-        # PicoPlatform (only deploy/dev+usb modes, skip in recovery)
-        if self._boot_reason in ("deploy", "dev+usb") and not is_recovery:
+        if self._boot_reason in EXECUTABLE_MODES:
             self._create_platform()
-
         logger.write_line("[runtime] startup complete")
 
     def _create_platform(self) -> None:
@@ -57,22 +45,17 @@ class Runtime:
         if self._stopped:
             return
 
-        # No platform = setup/development mode or recovery — skip payload
         if self._platform is None:
             logger.write_line(f"[runtime] {self._boot_reason} mode — no payload")
             return
 
-        # Run payload
         try:
             self._run_payload_pipeline()
         except Exception as e:
             logger.write_line(f"[runtime] payload crashed: {e}")
-            crash.increment()
-            import traceback
-            crash.set_last_error(traceback.format_exc())
+            raise
         else:
-            crash.reset()
-            crash.clear_force_visible()
+            logger.write_line("[runtime] payload complete")
 
     def _run_payload_pipeline(self) -> None:
         """Full payload pipeline: preprocess -> lex -> parse -> interpret."""
@@ -121,7 +104,6 @@ class Runtime:
                 continue
 
         platform.set_led(LedState.G)
-        logger.write_line("[runtime] payload complete")
 
     def stop(self) -> None:
         """Graceful shutdown."""

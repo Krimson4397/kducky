@@ -156,12 +156,12 @@ This section **must** be updated at the completion of every milestone. It descri
 | Field                 | Value                            |
 | --------------------- | -------------------------------- |
 | Project Version       | 1.0.0                            |
-| Completed Feature     | WiFi removal (KISS runtime) + Post-payload WiFi plan |
+| Completed Feature     | Boot mode refactor: NS / EWOS / EWIS via GP0+GP15 GPIO (3 modes, crash lockout removed) |
 | Current Branch        | main                             |
-| Last Commit           | fb5bc7a                          |
-| Repository Status     | Clean working tree |
+| Last Commit           | 830de98                          |
+| Repository Status     | Refactor committed; unrelated pre-existing edits remain in working tree (payloads/payload.dd, src/ducky/preprocessor.py, tests/test_preprocessor.py) — not part of this task |
 | Next Milestone        | Post-payload WiFi retrieval (see plans/Post_Payload_WiFi_Plan.md) |
-| Blocking Issues       | None                             |
+| Blocking Issues       | Pre-existing uncommitted changes in working tree (not introduced by this task) |
 | Ready to Continue     | YES (awaiting user approval) |
 
 ### Files Created
@@ -174,17 +174,24 @@ This section **must** be updated at the completion of every milestone. It descri
 - `src/platform/pico/wifi.py` — WiFi connection manager (station-first, AP fallback, secrets.py)
 - `src/platform/pico/webapp.py` — HTTP server (GET /, GET /status, POST /payload, GET /logs)
 - `src/platform/pico/runtime.py` — Runtime coordinator with start()/run()/stop() lifecycle
+- `src/platform/pico/mode.py` — Pure-logic boot mode selection (NS / EWOS / EWIS) from GP0+GP15 GPIO; `select_mode` + `is_executable` + `EXECUTABLE_MODES`; no CircuitPython imports (refactor)
+- `tests/test_mode.py` — 9 pytest tests for `mode.select_mode` and `mode.is_executable` (pure logic, no hardware)
 
 ### Files Modified
 
-- `src/platform/pico/boot.py` — Rewritten: 4 boot modes from GPIO jumpers (GP0+GP15), /system/FORCE_USB_VISIBLE recovery flag, writes /system/boot_reason
-- `src/platform/pico/main.py` — Rewritten: thin entry point (56 LOC) delegating to Runtime, _crash_handler for crash counting/logging
+- `src/platform/pico/boot.py` — Rewritten (3-mode refactor): reads GP0+GP15, calls `mode.select_mode`, writes /system/boot_reason, configures USB HID + storage per NS/EWOS/EWIS; removed crash lockout + /system/FORCE_USB_VISIBLE; imports `from platform.pico.mode import ...` (absolute, not relative — /boot.py runs as top-level module on hardware)
+- `src/platform/pico/main.py` — `_crash_handler` renamed to `_handle_error`: logs + re-raises, no crash counting/lockout; `supervisor.runtime.autoreload = False` and Runtime lifecycle retained
+- `src/platform/pico/runtime.py` — Removed `_is_stealth`, all `crash.*` calls, recovery branch; `start()` creates PicoPlatform only when `self._boot_reason in EXECUTABLE_MODES`; `run()` logs + re-raises on exception, no `crash.reset()`
 
 ### Files Deleted (WiFi Removal)
 
 - `src/platform/pico/wifi.py` — DELETED
 - `src/platform/pico/webapp.py` — DELETED
 - `src/platform/pico/runtime.py` — Stripped of all WiFi/web imports and logic; simplified to just payload execution
+
+### Files Deleted (Boot Mode Refactor)
+
+- `src/platform/pico/crash.py` — DELETED (crash counter + lockout manager removed; pure GPIO selection replaces it)
 
 ### Previously Committed (da5be05) — Interpreter fixes from hardware validation
 
@@ -196,7 +203,7 @@ This section **must** be updated at the completion of every milestone. It descri
 
 ### Tests Executed
 
-- `python -m pytest tests/ -x -q` — **784 passed, 6 skipped** (no regressions from pre-implementation baseline)
+- `python -m pytest tests/ -x -q` — **793 passed, 6 skipped** (784 baseline + 9 new test_mode tests)
 - `ruff check src/ tests/` — All checks passed
 
 ### Acceptance Criteria Completed
@@ -293,6 +300,14 @@ This section **must** be updated at the completion of every milestone. It descri
 - [x] **runtime.py:** Coordinator with start()→WiFi→WebServer ordering→PicoPlatform→run() payload pipeline (preprocess→lex→parse→interpret with REPLAY/STOP support)→stop() teardown
 - [x] **main.py:** Minimal entry point (56 LOC), delegates to Runtime, _crash_handler for crash counting/logging
 - [x] Full suite: 784 tests pass, ruff clean
+- [x] **Boot mode refactor:** 3 modes (NS / EWOS / EWIS) via GP0+GP15 GPIO — pure GPIO selection, NO crash lockout, NO FORCE_USB_VISIBLE
+- [x] `src/platform/pico/mode.py` — pure-logic `select_mode(gp0_high, gp15_high)` + `is_executable(mode)` + `EXECUTABLE_MODES`; imports safely on desktop (no CircuitPython imports)
+- [x] `boot.py` rewritten — reads GP0+GP15, calls `mode.select_mode`, writes /system/boot_reason, configures USB per mode (NS: defaults; EWOS: HID + remount read-only-from-host; EWIS: HID + disable_usb_drive); imports `from platform.pico.mode import` (absolute — `/boot.py` runs top-level on hardware, relative import would fail)
+- [x] `main.py` — `_crash_handler` → `_handle_error`: logs + re-raises only, no crash counter/lockout
+- [x] `runtime.py` — removed `_is_stealth`, all `crash.*` calls, recovery branch; `start()` creates PicoPlatform only when `boot_reason in EXECUTABLE_MODES`; `run()` logs + re-raises on exception
+- [x] `crash.py` DELETED; grep confirms no remaining `crash`/`force_visible`/`should_lockout`/`crash_count`/`last_error`/`FORCE_USB_VISIBLE` references in `src/` or `tests/`
+- [x] `tests/test_mode.py` — 9 pytest tests (3 GPIO input combinations × select_mode, 4 is_executable cases, EXECUTABLE_MODES set equality)
+- [x] Full suite: 793 tests pass, ruff clean
 
 ## 9. Next Session — What to Build
 
@@ -349,7 +364,9 @@ Before making any changes:
 2. Read the three planning documents under plans/.
 3. Read the latest Session Handoff in AGENTS.md (§8).
 4. Verify the Git working tree is clean.
-5. Resume from Pico Runtime Features completion.
+5. Resume from Boot mode refactor (3-mode NS / EWOS / EWIS via GP0+GP15 GPIO) completion.
+
+Boot modes are now: NS (no payload, MSC visible) / EWOS (payload, HID, MSC read-only) / EWIS (payload, HID, MSC hidden), selected by GP0+GP15 GPIO jumpers. Crash lockout and FORCE_USB_VISIBLE were removed — boot modes are pure GPIO selection (see src/platform/pico/mode.py).
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.

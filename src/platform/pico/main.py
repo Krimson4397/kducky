@@ -16,15 +16,15 @@ from platform.pico.runtime import Runtime
 
 # ── Global exception handler ────────────────────────────────────────────
 
-def _crash_handler(e: BaseException) -> None:
-    """Handle uncaught exception: increment crash counter, log, re-raise."""
+def _handle_error(e: Exception) -> None:
+    """Log exception, do NOT bump a crash counter (lockout removed)."""
     _traceback.print_exception(type(e), e, e.__traceback__)
-    from platform.pico import crash as _crash
     from platform.pico import logger as _logger
-    _crash.increment()
-    _crash.set_last_error(f"{type(e).__name__}: {e}")
-    _logger.write_line(f"[pico] uncaught crash: {e}")
-    raise
+    _logger.write_line(f"[main] error: {e!r}")
+    _logger.write_line(
+        "".join(_traceback.format_exception(None, e, e.__traceback__))
+    )
+    raise  # let CircuitPython show the traceback
 
 # ── Main ────────────────────────────────────────────────────────────────
 
@@ -37,12 +37,12 @@ def main() -> None:
     try:
         rt.start()
     except Exception as e:
-        _crash_handler(e)
+        _handle_error(e)
 
     try:
         rt.run()
     except Exception as e:
-        _crash_handler(e)
+        _handle_error(e)
 
     try:
         rt.stop()
