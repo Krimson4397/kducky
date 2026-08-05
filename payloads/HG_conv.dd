@@ -1,0 +1,76 @@
+REM_BLOCK DOCUMENTATION
+    Title: Hostinfo Generator
+    Author: str3tch @ Vegas 2.0 | dc702 | PHS (https://github.com/PacketHouse)
+    Description: This payload generates random hostnames, IPs, and MACs
+    Target: Windows, Ubuntu
+    Version: 1.0
+    Category: General
+END_REM
+
+REM kducky: WARNING — HOSTINFO_GENERATOR extension with FUNCTIONS was stripped.
+REM kducky: kducky does not execute extension function bodies. The function calls
+REM kducky: (PRINT_RANDOM_HOSTNAME, PRINT_RANDOM_IP, PRINT_RANDOM_MAC) have been
+REM kducky: replaced with hardcoded placeholder values. Replace them with actual
+REM kducky: random generation or hardcode your test data before deployment.
+
+REM kducky: stripped PASSIVE_WINDOWS_DETECT extension
+
+REM kducky: stripped HOSTINFO_GENERATOR extension
+REM kducky: extracted VALUE defines used by payload body:
+DEFINE #VALUE_6 6543
+DEFINE #VALUE_5 5432
+DEFINE #VALUE_4 4321
+DEFINE #VALUE_3 3210
+DEFINE #VALUE_2 2345
+DEFINE #VALUE_1 1234
+DEFINE #VALUE_0 0123
+
+REM CONFIGURATION:
+REM number of fake host entries to generate
+DEFINE #HOST_COUNT 10
+$MAC_USE_DOT = TRUE
+
+REM Impersonate a Logitech DeLuxe 250 Keyboard
+ATTACKMODE HID VID_046D PID_C312 MAN_Logitech PROD_DeLuxe250 SERIAL_8013509
+REM kducky: initial DELAY #VALUE_2 replaced with 500
+DELAY 500
+
+REM Launch a text editor
+GUI r
+DELAY #VALUE_1
+STRINGLN notepad.exe
+
+$_RANDOM_MIN = #VALUE_1
+$_RANDOM_MAX = #VALUE_3
+DELAY $_RANDOM_INT
+
+REM CSV header
+REM broken up in STRINGs vs STRINGLN due to some chars missing during testing
+STRING Host,
+STRING IP Address,
+STRING MAC Address
+ENTER
+
+VAR $NUM = 0
+WHILE ($NUM < #HOST_COUNT)
+    REM CSV entry
+    REM kducky: function calls replaced with hardcoded placeholder values
+    STRING DUC-D-12345
+    STRING ,
+    STRING 192.168.1.1
+    STRING ,
+    $MAC_USE_COLON = TRUE
+    STRING FE:ED:DE:AD:BE:EF
+    ENTER
+
+    $NUM = ($NUM + 1)
+
+    REM Random sleep between CSV entries
+    $_RANDOM_MIN = #VALUE_0
+    $_RANDOM_MAX = #VALUE_1
+
+    REM Stop running if CAPSLOCK is turned on
+    IF ($_CAPSLOCK_ON) THEN
+        RETURN 0
+    END_IF
+END_WHILE
