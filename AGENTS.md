@@ -153,16 +153,16 @@ This section **must** be updated at the completion of every milestone. It descri
 
 ### Handoff Summary
 
-| Field             | Value                                                                   |
-| ----------------- | ----------------------------------------------------------------------- |
-| Project Version   | 1.0.0                                                                   |
-| Completed Feature | 3-mode boot (NS / EWOS / EWIS), bugfixes, EWOS default, 1.25s HID delay |
-| Current Branch    | main                                                                    |
-| Last Commit       | 27357c1                                                                 |
-| Repository Status | Clean — all files committed and pushed to origin/main                   |
-| Next Milestone    | (post-payload WiFi retrieval — see plans/Post_Payload_WiFi_Plan.md)     |
-| Blocking Issues   | None                                                                    |
-| Ready to Continue | YES (awaiting user approval)                                            |
+| Field             | Value                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------- |
+| Project Version   | 1.0.0                                                                                                   |
+| Completed Feature | Phase 1 runtime compatibility (STRING_* block aliases, STRINGLN first-tab whitespace rule, F13-F24, basic media keys, EXFIL with human-readable loot.bin) — plus the prior 3-mode boot (NS / EWOS / EWIS) baseline |
+| Current Branch    | main                                                                                                    |
+| Last Commit       | af7e75f                                                                                                 |
+| Repository Status | Clean tracked tree. `plans/Compatibility_Plan.md` committed with this handoff (was untracked). **NOT yet pushed** — af7e75f was amended locally; origin/main only has the prior commits. |
+| Next Milestone    | Phase 2 — converter (`src/ducky/compat/` + `ducky-convert` CLI), per `plans/Compatibility_Plan.md`      |
+| Blocking Issues   | None. mypy repo-wide broken (pre-existing 633 baseline errors at HEAD~1 before Phase 1; documented command `mypy src/ tests/` silently exits 2 because pyproject excludes tests/; real command is `mypy src/`). Decision on mypy remediation parked by user. |
+| Ready to Continue | YES (awaiting user approval for Phase 2)                                                                |
 
 ### Boot Modes (Current)
 
@@ -193,7 +193,7 @@ Three modes selected by two GPIO jumpers (GP0, GP15), each a pulled-up input tha
 | `src/platform/pico/boot.py`     | CircuitPython boot.py: reads GP0+GP15, calls `select_mode`, writes `/system/boot_reason`, configures USB HID + storage per mode. |
 | `src/platform/pico/runtime.py`  | Lifecycle coordinator: `start()` → `run()` (payload pipeline) → `stop()` (teardown + EWOS host-writable remount).                  |
 | `src/platform/pico/main.py`     | Entry point: creates Runtime, delegates lifecycle. `_handle_error` logs + re-raises (no crash counter).                        |
-| `src/platform/pico/backends.py` | `PicoPlatform` class implementing all 26 `PlatformInterface` methods. Guarded imports (`_HAS_HW`) for desktop testability.         |
+| `src/platform/pico/backends.py` | `PicoPlatform` class implementing all 37 `PlatformInterface` methods. Guarded imports (`_HAS_HW`) for desktop testability. |
 | `src/platform/pico/logger.py`   | Rotating dual-file log (`/logs/latest.log`, `/logs/previous.log`).                                                               |
 | `src/platform/pico/payload.py`  | Payload file manager: `read()`, `exists()`, CRC32 `fingerprint()`, atomic `update()` with validate.                                  |
 | `tests/test_mode.py`            | 9 pure-logic tests for mode selection and executability.                                                                     |
@@ -213,10 +213,27 @@ Three modes selected by two GPIO jumpers (GP0, GP15), each a pulled-up input tha
 3. **EWOS post-run host-writable** — `Runtime.stop()` remounts filesystem host-writable after payload completes in EWOS mode.
 4. **Serial console in stealth** — `usb_cdc.enable()` gated on NS mode only. EWOS/EWIS skip it.
 
+### Phase 1 (commit af7e75f) — Runtime compatibility additions
+
+Phase 1 of `plans/Compatibility_Plan.md` — runtime-side (Pico) additions so common off-the-shelf payloads run with zero extra steps. No dialect detection yet; that is Phase 2.
+
+- **STRING_* block aliases** — `STRING_POWERSHELL`, `STRING_BATCH`, `STRING_BASH`, `STRING_JAVASCRIPT`, `STRING_PYTHON`, `STRING_RUBY`, `STRING_HTML` (and `STRINGLN_*` variants) map to the existing block mode in the lexer. No new token types, no AST changes.
+- **STRINGLN first-tab whitespace rule** — official rule strips only the FIRST tab per line and preserves other formatting; fixed lexer to match instead of lstripping all leading whitespace.
+- **F13–F24** — HID usage IDs added to `_ACTION_KEY_MAP` in the Pico backend (~10 keycodes).
+- **Basic media keys** — volume up/down/mute, play/pause, stop, next/previous track (consumer page codes).
+- **EXFIL** — `EXFIL $var` writes collected data to loot.bin in the Hak5 format (human-readable), so official exfil payloads behave identically.
+- **Spec amendment** — Engineering Spec §1.13 now lists STRING_*, F13+, media keys, and EXFIL as supported project extensions (§1.14).
+
+### Logged Cleanup Nits (not blocking, parked)
+
+1. **Stale docstring in backends.py:290** — says "Implements all 25 methods" but `PlatformInterface` now has 37 methods (protocol grew with mouse/media/exfil additions). Cosmetic only.
+2. **Desktop mock lacks media+modifier ValueError parity** — `src/ducky/platform/desktop.py` records media-key presses without the Pico backend's `ValueError` guard ("Media key cannot be combined with modifiers"). Tests on desktop won't catch payloads that illegally combine media keys with modifiers.
+
 ### Tests Executed
 
-- `python -m pytest tests/ -x -q` — **793 passed, 6 skipped** (6 skipped are `_HAS_HW`-gated keycode map tests)
+- `python -m pytest tests/ -x -q` — **839 passed, 6 skipped** (6 skipped are `_HAS_HW`-gated keycode map tests)
 - `ruff check src/ tests/` — All checks passed
+- `mypy` — N/A (repo-wide broken baseline, parked — see Blocking Issues)
 
 ### User Validation
 
@@ -228,10 +245,18 @@ Three modes selected by two GPIO jumpers (GP0, GP15), each a pulled-up input tha
 
 ## 9. Next Session — What to Build
 
-The kducky project is currently in a stable state with a fully working interpreter and 3-mode boot runtime. The post-payload WiFi retrieval plan exists in `plans/Post_Payload_WiFi_Plan.md` but is not yet implemented.
+The kducky project is currently in a stable state with a fully working interpreter, a 3-mode boot runtime, and Phase 1 runtime compatibility additions in place. The next milestone is **Phase 2 — the converter**, per `plans/Compatibility_Plan.md` (design approved, implementation not started).
+
+Phase 2 scope (from `plans/Compatibility_Plan.md`):
+- New component inside kducky: `src/ducky/compat/` (`dialect.py`, `rules.py`, `transforms.py`, `convert.py`, `prompts.py`) + `tests/test_compat.py`.
+- CLI named `ducky-convert` with three modes: interactive (stops at ask rules), `--auto` (safe defaults), `--report` (lint only).
+- Accepts DuckyScript 3.0 + classic 1.0; rejects Key Croc, Bash Bunny, inject.bin with clear reasons.
+- Rule engine with severities (auto / ask / warn / reject) and initial transforms (STRING_POWERSHELL → STRING block, bare-char lines, implicit modifiers, ATTACKMODE warn, Key Croc Q-prefix strip).
+- Verification: after emit, the converter runs the converted payload through a desktop dry-run (existing interpreter + DesktopPlatform) and includes the event log in the report. "Converted AND executes clean" = green acceptance.
 
 Current capabilities:
-- DuckyScript 3 interpreter (full language spec) with ~800 passing tests
+- DuckyScript 3 interpreter (full language spec) with ~840 passing tests
+- Phase 1 runtime compatibility: STRING_* block aliases, STRINGLN first-tab whitespace rule, F13–F24, basic media keys, EXFIL → loot.bin
 - 3 GPIO-selected boot modes: EWOS (default, payload + visible MSC), EWIS (stealth), NS (dev)
 - 1.25s HID enumeration delay before payload execution
 - Payload pipeline: Preprocessor → Lexer → Parser → Interpreter → PicoPlatform (HID)
@@ -269,6 +294,9 @@ Key architectural notes:
 - 1.25s delay in _run_payload_pipeline() before any HID keystrokes
 - EWOS: Pico writes via storage.remount(readonly=False); host reads via MSC read-only
 - crash/lockout/FORCE_USB_VISIBLE were removed — mode selection is pure GPIO
+- Phase 1 (af7e75f) landed: STRING_* block aliases, STRINGLN first-tab rule, F13-F24, media keys, EXFIL → loot.bin. No dialect detection yet.
+
+Next milestone: Phase 2 — converter (src/ducky/compat/ + ducky-convert CLI) per plans/Compatibility_Plan.md.
 
 Do not repeat completed milestones.
 Wait for approval before beginning the next milestone.
