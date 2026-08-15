@@ -21,6 +21,7 @@ from ducky.ast import (  # noqa: E402
     DollarIdentifierExpr,
     DuckyLangStmt,
     EnableButtonStmt,
+    ExfilStmt,
     Expr,
     ExtensionStmt,
     FunctionDef,
@@ -206,6 +207,21 @@ class Interpreter(NodeVisitor):
 
     # ── Delay statements ───────────────────────────────────────────────
 
+    def _lookup_variable(self, name: str, context: str | None = None) -> int:
+        """Resolve *name* in local scopes (innermost first), then globals.
+
+        Raises ``InterpreterError`` when the variable is undeclared; the
+        *context* label is included in the message when provided.
+        """
+        for scope in reversed(self._locals):
+            if name in scope:
+                return scope[name]
+        if name in self._globals:
+            return self._globals[name]
+        if context is not None:
+            raise InterpreterError(f"Undefined variable '{name}' in {context}")
+        raise InterpreterError(f"Undeclared variable: ${name}")
+
     def visit_DelayStmt(self, node: DelayStmt) -> None:
         ms = self._eval_expr(node.milliseconds)
         ms = max(20, ms)
@@ -284,21 +300,12 @@ class Interpreter(NodeVisitor):
 
     def visit_InjectVarStmt(self, node: InjectVarStmt) -> None:
         """INJECT_VAR $name — type the variable's value as keystrokes."""
-        name = node.variable
-        # Check local scopes top-down (innermost first)
-        value = None
-        for scope in reversed(self._locals):
-            if name in scope:
-                value = scope[name]
-                break
-        if value is None:
-            if name not in self._globals:
-                raise InterpreterError(
-                    f"Undefined variable '{name}' in INJECT_VAR"
-                )
-            value = self._globals[name]
-        text = str(value)
+        text = str(self._lookup_variable(node.variable, "INJECT_VAR"))
         self._type_text(text)
+
+    def visit_ExfilStmt(self, node: ExfilStmt) -> None:
+        """EXFIL $name — append the variable's value to loot.bin."""
+        self.platform.exfil(str(self._lookup_variable(node.variable, "EXFIL")))
 
     def visit_RandomStmt(self, node: RandomStmt) -> None:
         rtype = node.random_type

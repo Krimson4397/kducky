@@ -25,7 +25,7 @@ class DesktopPlatform:
         calls: List of ``(method_name, *args)`` tuples in call order.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, loot_path: str | None = None) -> None:
         self.output: list[str] = []
         self.calls: list[tuple[object, ...]] = []
         self._default_delay_ms: int = 0
@@ -38,6 +38,8 @@ class DesktopPlatform:
         self._saved_scroll: bool = False
         self._attack_mode_saved: tuple[str, ...] | None = None
         self._current_layout: str = "US"
+        # When set, ``exfil`` also appends to this file (loot.bin).
+        self._loot_path: str | None = loot_path
 
     def _record(self, name: str, *args: object) -> None:
         self.calls.append((name, *args))
@@ -161,6 +163,20 @@ class DesktopPlatform:
     def random_int(self, min_val: int, max_val: int) -> int:
         self._record("random_int", min_val, max_val)
         return _random.randint(min_val, max_val)
+
+    # ── Exfiltration ───────────────────────────────────────────────────
+
+    def exfil(self, data: str) -> None:
+        """EXFIL — record the call and optionally append to loot.bin.
+
+        When ``loot_path`` was supplied at construction, *data* is
+        appended as its own line to that file (the Pico backend's
+        ``/loot.bin`` format).
+        """
+        self._record("exfil", data)
+        if self._loot_path is not None:
+            with open(self._loot_path, "a", encoding="utf-8") as loot_file:
+                loot_file.write(data + "\n")
 
     # ── Mouse ───────────────────────────────────────────────────────────
 

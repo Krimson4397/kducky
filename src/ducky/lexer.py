@@ -101,6 +101,7 @@ _KEYWORDS: dict[str, TokenType] = {
     "REPLAY": TokenType.REPLAY,
     "JITTER": TokenType.JITTER,
     "INJECT_VAR": TokenType.INJECT_VAR,
+    "EXFIL": TokenType.EXFIL,
     "ON": TokenType.ON,
     "OFF": TokenType.OFF,
     # Mouse
@@ -161,6 +162,18 @@ _KEYWORDS: dict[str, TokenType] = {
     "F10": TokenType.F10,
     "F11": TokenType.F11,
     "F12": TokenType.F12,
+    "F13": TokenType.F13,
+    "F14": TokenType.F14,
+    "F15": TokenType.F15,
+    "F16": TokenType.F16,
+    "F17": TokenType.F17,
+    "F18": TokenType.F18,
+    "F19": TokenType.F19,
+    "F20": TokenType.F20,
+    "F21": TokenType.F21,
+    "F22": TokenType.F22,
+    "F23": TokenType.F23,
+    "F24": TokenType.F24,
     "KP_SLASH": TokenType.KP_SLASH,
     "KP_ASTERISK": TokenType.KP_ASTERISK,
     "KP_MINUS": TokenType.KP_MINUS,
@@ -187,7 +200,42 @@ _KEYWORDS: dict[str, TokenType] = {
     "PROPS": TokenType.PROPS,
     "UNDO": TokenType.UNDO,
     "PASTE": TokenType.PASTE,
+    # Media keys (project extension)
+    "VOLUME_UP": TokenType.VOLUME_UP,
+    "VOLUME_DOWN": TokenType.VOLUME_DOWN,
+    "MUTE": TokenType.MUTE,
+    "PLAY_PAUSE": TokenType.PLAY_PAUSE,
+    "STOP": TokenType.STOP,
+    "NEXT_TRACK": TokenType.NEXT_TRACK,
+    "PREV_TRACK": TokenType.PREV_TRACK,
 }
+
+# STRING / STRINGLN and their embedded-language block aliases.
+#
+# STRING_POWERSHELL, STRING_BATCH, STRING_BASH, STRING_JAVASCRIPT,
+# STRING_PYTHON, STRING_RUBY, STRING_HTML (and the STRINGLN_* variants)
+# are NOT separate runtime commands — they are the block forms of
+# STRING/STRINGLN with editor language modes.  Each alias tokenizes as
+# its base keyword and closes with END_STRING (STRING_*) or
+# END_STRINGLN (STRINGLN_*).
+_STRING_KEYWORDS: tuple[tuple[str, bool], ...] = (
+    ("STRINGLN_POWERSHELL", True),
+    ("STRINGLN_BATCH", True),
+    ("STRINGLN_BASH", True),
+    ("STRINGLN_JAVASCRIPT", True),
+    ("STRINGLN_PYTHON", True),
+    ("STRINGLN_RUBY", True),
+    ("STRINGLN_HTML", True),
+    ("STRING_POWERSHELL", False),
+    ("STRING_BATCH", False),
+    ("STRING_BASH", False),
+    ("STRING_JAVASCRIPT", False),
+    ("STRING_PYTHON", False),
+    ("STRING_RUBY", False),
+    ("STRING_HTML", False),
+    ("STRINGLN", True),
+    ("STRING", False),
+)
 
 
 class DuckyLexer:
@@ -279,161 +327,17 @@ class DuckyLexer:
                     col += 1
                 continue
 
-            # 7. STRINGLN (checked before STRING because it's a longer match)
-            if (
-                i + 8 <= len(source)
-                and source[i : i + 8].upper() == "STRINGLN"
-                and self._at_boundary(source, i + 8)
-            ):
-                tokens.append(Token(TokenType.STRINGLN, "STRINGLN", line, col))
-                i += 8
-                col += 8
-                # Strip leading spaces
-                while i < len(source) and source[i] == " ":
-                    i += 1
-                    col += 1
-                body_start = i
-                body_col = col
-                while i < len(source) and source[i] != "\n":
-                    i += 1
-                    col += 1
-                body = source[body_start:i].rstrip(" ")
-
-                if not body:
-                    # Block mode — keyword was on a line by itself
-                    if i < len(source) and source[i] == "\n":
-                        i += 1
-                        line += 1
-                        col = 1
-                    is_ln = True
-                    end_keyword = "END_STRINGLN"
-                    end_keyword_len = len(end_keyword)
-                    block_lines = []
-                    body_line_col = col
-                    nl_line = line
-                    nl_col = col
-                    while i < len(source):
-                        line_start = i
-                        # Skip leading whitespace to check for end marker
-                        while i < len(source) and source[i] in " \t":
-                            i += 1
-                        if (
-                            i + end_keyword_len <= len(source)
-                            and source[i:i + end_keyword_len].upper() == end_keyword
-                            and self._at_boundary(source, i + end_keyword_len)
-                        ):
-                            # Consume rest of END_STRINGLN line
-                            while i < len(source) and source[i] != "\n":
-                                i += 1
-                            nl_line = line
-                            nl_col = col
-                            if i < len(source) and source[i] == "\n":
-                                i += 1
-                                line += 1
-                                col = 1
-                            break
-                        # Not end marker — reset and collect full line
-                        i = line_start
-                        while i < len(source) and source[i] != "\n":
-                            i += 1
-                            col += 1
-                        raw_line = source[line_start:i]
-                        block_lines.append(raw_line.lstrip())
-                        if i < len(source) and source[i] == "\n":
-                            i += 1
-                            line += 1
-                            col = 1
-                    separator = "\n" if is_ln else ""
-                    combined = separator.join(block_lines)
-                    if combined:
-                        tokens.append(Token(TokenType.STRING_BODY, combined, line, body_line_col))
-                    if nl_line is not None:
-                        tokens.append(Token(TokenType.NEWLINE, "\n", nl_line, nl_col))
-                    continue
-                else:
-                    # Inline mode
-                    if body:
-                        tokens.append(Token(TokenType.STRING_BODY, body, line, body_col))
+            # 7. STRING / STRINGLN and their embedded-language aliases.
+            #    STRING_* / STRINGLN_* behave exactly like their base
+            #    keyword: inline body or END_STRING / END_STRINGLN block.
+            if ch in "sS":
+                _result = self._scan_string_statement(source, i, line, col)
+                if _result is not None:
+                    _new_tokens, i, line, col = _result
+                    tokens.extend(_new_tokens)
                     continue
 
-            # 8. STRING
-            if (
-                i + 6 <= len(source)
-                and source[i : i + 6].upper() == "STRING"
-                and self._at_boundary(source, i + 6)
-            ):
-                tokens.append(Token(TokenType.STRING, "STRING", line, col))
-                i += 6
-                col += 6
-                # Strip leading spaces
-                while i < len(source) and source[i] == " ":
-                    i += 1
-                    col += 1
-                body_start = i
-                body_col = col
-                while i < len(source) and source[i] != "\n":
-                    i += 1
-                    col += 1
-                body = source[body_start:i].rstrip(" ")
-
-                if not body:
-                    # Block mode — keyword was on a line by itself
-                    if i < len(source) and source[i] == "\n":
-                        i += 1
-                        line += 1
-                        col = 1
-                    is_ln = False
-                    end_keyword = "END_STRING"
-                    end_keyword_len = len(end_keyword)
-                    block_lines = []
-                    body_line_col = col
-                    nl_line = line
-                    nl_col = col
-                    while i < len(source):
-                        line_start = i
-                        # Skip leading whitespace to check for end marker
-                        while i < len(source) and source[i] in " \t":
-                            i += 1
-                        if (
-                            i + end_keyword_len <= len(source)
-                            and source[i:i + end_keyword_len].upper() == end_keyword
-                            and self._at_boundary(source, i + end_keyword_len)
-                        ):
-                            # Consume rest of END_STRING line
-                            while i < len(source) and source[i] != "\n":
-                                i += 1
-                            nl_line = line
-                            nl_col = col
-                            if i < len(source) and source[i] == "\n":
-                                i += 1
-                                line += 1
-                                col = 1
-                            break
-                        # Not end marker — reset and collect full line
-                        i = line_start
-                        while i < len(source) and source[i] != "\n":
-                            i += 1
-                            col += 1
-                        raw_line = source[line_start:i]
-                        block_lines.append(raw_line.lstrip())
-                        if i < len(source) and source[i] == "\n":
-                            i += 1
-                            line += 1
-                            col = 1
-                    separator = "\n" if is_ln else ""
-                    combined = separator.join(block_lines)
-                    if combined:
-                        tokens.append(Token(TokenType.STRING_BODY, combined, line, body_line_col))
-                    if nl_line is not None:
-                        tokens.append(Token(TokenType.NEWLINE, "\n", nl_line, nl_col))
-                    continue
-                else:
-                    # Inline mode
-                    if body:
-                        tokens.append(Token(TokenType.STRING_BODY, body, line, body_col))
-                    continue
-
-            # 9. ATTACKMODE — remaining tokens on line are ATTACKMODE_PARAM
+            # 8. ATTACKMODE — remaining tokens on line are ATTACKMODE_PARAM
             if (
                 i + 10 <= len(source)
                 and source[i : i + 10].upper() == "ATTACKMODE"
@@ -458,7 +362,7 @@ class DuckyLexer:
                     )
                 continue
 
-            # 10. General token (operators, identifiers, literals, etc.)
+            # 9. General token (operators, identifiers, literals, etc.)
             new_tokens, new_i = self._scan_token(source, i, line, col)
             tokens.extend(new_tokens)
             consumed = new_i - i
@@ -565,6 +469,149 @@ class DuckyLexer:
 
         # Nothing matched — illegal character
         raise LexerError(f"Illegal character 0x{ord(ch):02X}", line, col)
+
+    def _scan_string_statement(
+        self, source: str, i: int, line: int, col: int
+    ) -> tuple[list[Token], int, int, int] | None:
+        """Scan a STRING/STRINGLN statement or one of their aliases.
+
+        Tries every ``_STRING_KEYWORDS`` entry (embedded-language aliases
+        first, then the base keywords) and returns ``(tokens, i, line, col)``
+        on the first match, else ``None``.
+        """
+        # Quick prefix gate: only words beginning with STRING/STRINGLN
+        # (case-insensitive) can be string keywords.  This avoids slicing
+        # and uppercasing all 16 candidates for every word that starts
+        # with 's'.  Each candidate still applies its own boundary check,
+        # so STRING_POWERSHELL2 continues to lex as a plain identifier.
+        if not source[i : i + 8].upper().startswith("STRING"):
+            return None
+        for keyword, is_ln in _STRING_KEYWORDS:
+            result = self._scan_string_keyword(
+                source, i, line, col, keyword, is_ln
+            )
+            if result is not None:
+                return result
+        return None
+
+    def _scan_string_keyword(
+        self, source: str, i: int, line: int, col: int,
+        keyword: str, is_ln: bool,
+    ) -> tuple[list[Token], int, int, int] | None:
+        """Scan one STRING-style keyword at position *i*.
+
+        Handles inline bodies and END_STRING / END_STRINGLN block mode
+        identically for STRING, STRINGLN, and the STRING_* / STRINGLN_*
+        aliases.  Returns ``(tokens, i, line, col)`` if *keyword* matches,
+        else ``None``.
+        """
+        kw_len = len(keyword)
+        if not (
+            i + kw_len <= len(source)
+            and source[i : i + kw_len].upper() == keyword
+            and self._at_boundary(source, i + kw_len)
+        ):
+            return None
+
+        tokens: list[Token] = []
+        token_type = TokenType.STRINGLN if is_ln else TokenType.STRING
+        tokens.append(Token(token_type, keyword, line, col))
+        i += kw_len
+        col += kw_len
+
+        # Strip leading spaces (inline body per spec §1.10)
+        while i < len(source) and source[i] == " ":
+            i += 1
+            col += 1
+        body_start = i
+        body_col = col
+        while i < len(source) and source[i] != "\n":
+            i += 1
+            col += 1
+        body = source[body_start:i].rstrip(" ")
+
+        if not body:
+            # Block mode — keyword was on a line by itself
+            if i < len(source) and source[i] == "\n":
+                i += 1
+                line += 1
+                col = 1
+            end_keyword = "END_STRINGLN" if is_ln else "END_STRING"
+            end_keyword_len = len(end_keyword)
+            block_lines: list[str] = []
+            body_line_col = col
+            nl_line = line
+            nl_col = col
+            while i < len(source):
+                line_start = i
+                # Skip leading whitespace to check for end marker
+                while i < len(source) and source[i] in " \t":
+                    i += 1
+                if (
+                    i + end_keyword_len <= len(source)
+                    and source[i : i + end_keyword_len].upper() == end_keyword
+                    and self._at_boundary(source, i + end_keyword_len)
+                ):
+                    # Consume rest of END_STRING(LN) line
+                    while i < len(source) and source[i] != "\n":
+                        i += 1
+                    nl_line = line
+                    nl_col = col
+                    if i < len(source) and source[i] == "\n":
+                        i += 1
+                        line += 1
+                        col = 1
+                    break
+                # Not the expected terminator — but a mismatched
+                # STRING/STRINGLN terminator is an error, not body text.
+                # END_STRINGLN starts with END_STRING, so probe the
+                # longer token first.
+                other = "END_STRINGLN" if not is_ln else "END_STRING"
+                if (
+                    i + len(other) <= len(source)
+                    and source[i : i + len(other)].upper() == other
+                    and self._at_boundary(source, i + len(other))
+                ):
+                    raise LexerError(
+                        f"Mismatched block terminator: found {other} "
+                        f"while scanning a "
+                        f"{'STRINGLN' if is_ln else 'STRING'} block",
+                        line,
+                        col + (i - line_start),
+                    )
+                # Not an end marker — reset and collect full line
+                i = line_start
+                while i < len(source) and source[i] != "\n":
+                    i += 1
+                    col += 1
+                raw_line = source[line_start:i]
+                if is_ln:
+                    # STRINGLN strips only a single leading tab per line;
+                    # all other formatting and whitespace is preserved.
+                    if raw_line.startswith("\t"):
+                        raw_line = raw_line[1:]
+                    block_lines.append(raw_line)
+                else:
+                    # STRING strips leading whitespace and joins lines.
+                    block_lines.append(raw_line.lstrip())
+                if i < len(source) and source[i] == "\n":
+                    i += 1
+                    line += 1
+                    col = 1
+            separator = "\n" if is_ln else ""
+            combined = separator.join(block_lines)
+            if combined:
+                tokens.append(
+                    Token(TokenType.STRING_BODY, combined, line, body_line_col)
+                )
+            if nl_line is not None:
+                tokens.append(Token(TokenType.NEWLINE, "\n", nl_line, nl_col))
+            return (tokens, i, line, col)
+
+        # Inline mode
+        if body:
+            tokens.append(Token(TokenType.STRING_BODY, body, line, body_col))
+        return (tokens, i, line, col)
 
     def _scan_string(
         self, source: str, i: int, line: int, col: int

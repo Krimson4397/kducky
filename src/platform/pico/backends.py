@@ -23,6 +23,10 @@ try:
     import digitalio
     import microcontroller  # noqa: F401  — used for reset / chip info
     import usb_hid
+    from adafruit_hid.consumer_control import ConsumerControl
+    from adafruit_hid.consumer_control_code import (
+        ConsumerControlCode as _CCC,  # noqa: N814
+    )
     from adafruit_hid.keyboard import Keyboard
     from adafruit_hid.keycode import Keycode as _KC  # noqa: N814
     from adafruit_hid.mouse import Mouse as _Mouse  # noqa: N814
@@ -61,6 +65,18 @@ try:
         if not hasattr(_KC, _alias):
             setattr(_KC, _alias, getattr(_KC, _target))
     del _KC_ALIASES, _alias, _target
+
+    # F13–F24 use the standard HID keyboard usage codes 0x68–0x73.
+    # Add them explicitly so the map works even on adafruit_hid builds
+    # that do not define the F13–F24 names.
+    for _usage, _name in (
+        (0x68, "F13"), (0x69, "F14"), (0x6A, "F15"), (0x6B, "F16"),
+        (0x6C, "F17"), (0x6D, "F18"), (0x6E, "F19"), (0x6F, "F20"),
+        (0x70, "F21"), (0x71, "F22"), (0x72, "F23"), (0x73, "F24"),
+    ):
+        if not hasattr(_KC, _name):
+            setattr(_KC, _name, _usage)
+    del _usage, _name
 
     _HAS_HW = True
 except Exception:
@@ -124,6 +140,18 @@ if _HAS_HW:
         ActionKey.F10: _KC.F10,
         ActionKey.F11: _KC.F11,
         ActionKey.F12: _KC.F12,
+        ActionKey.F13: _KC.F13,
+        ActionKey.F14: _KC.F14,
+        ActionKey.F15: _KC.F15,
+        ActionKey.F16: _KC.F16,
+        ActionKey.F17: _KC.F17,
+        ActionKey.F18: _KC.F18,
+        ActionKey.F19: _KC.F19,
+        ActionKey.F20: _KC.F20,
+        ActionKey.F21: _KC.F21,
+        ActionKey.F22: _KC.F22,
+        ActionKey.F23: _KC.F23,
+        ActionKey.F24: _KC.F24,
         # Numpad
         ActionKey.KP_SLASH: _KC.KEYPAD_DIVIDE,
         ActionKey.KP_ASTERISK: _KC.KEYPAD_MULTIPLY,
@@ -155,6 +183,16 @@ if _HAS_HW:
         ActionKey.PROPS: _KC.PROPS,
         ActionKey.UNDO: _KC.UNDO,
         ActionKey.PASTE: _KC.PASTE,
+        # Media keys — HID consumer-page usage codes, sent via the
+        # ConsumerControl endpoint (routed in press_key / hold_key /
+        # release_key).
+        ActionKey.VOLUME_UP: _CCC.VOLUME_INCREMENT,
+        ActionKey.VOLUME_DOWN: _CCC.VOLUME_DECREMENT,
+        ActionKey.MUTE: _CCC.MUTE,
+        ActionKey.PLAY_PAUSE: _CCC.PLAY_PAUSE,
+        ActionKey.STOP: _CCC.STOP,
+        ActionKey.NEXT_TRACK: _CCC.SCAN_NEXT_TRACK,
+        ActionKey.PREV_TRACK: _CCC.SCAN_PREVIOUS_TRACK,
     }
 
     _MODIFIER_KEY_MAP: dict[ModifierKey, int] = {
@@ -195,6 +233,37 @@ else:
                 return _random.randint(a, b)
         _RNG = _FallbackRNG()
 
+# Media keys are routed through the HID consumer-control endpoint rather
+# than the keyboard endpoint.  The set is pure data (ActionKey members
+# only) and is defined unconditionally, so the media-key routing and
+# validation helpers are testable on desktop even though the consumer
+# usage codes in _ACTION_KEY_MAP require CircuitPython.
+_MEDIA_ACTION_KEYS: frozenset[ActionKey] = frozenset(
+    (
+        ActionKey.VOLUME_UP,
+        ActionKey.VOLUME_DOWN,
+        ActionKey.MUTE,
+        ActionKey.PLAY_PAUSE,
+        ActionKey.STOP,
+        ActionKey.NEXT_TRACK,
+        ActionKey.PREV_TRACK,
+    )
+)
+
+
+def _validate_media_key_press(
+    key: object, modifiers: tuple[object, ...]
+) -> None:
+    """Reject a media key combined with keyboard modifiers.
+
+    Media keys travel over the HID consumer-control endpoint, which has
+    no modifier concept; combining them with keyboard modifiers would
+    silently drop the key, so ``press_key`` raises ``ValueError``.
+    """
+    if isinstance(key, ActionKey) and key in _MEDIA_ACTION_KEYS and modifiers:
+        raise ValueError("Media key cannot be combined with modifiers")
+
+
 # Digit key names for single-char keycode resolution
 _DIGIT_NAMES = ["ZERO", "ONE", "TWO", "THREE", "FOUR",
                 "FIVE", "SIX", "SEVEN", "EIGHT", "NINE"]
@@ -212,6 +281,7 @@ _LED_SCROLL: int = 0x04
 # ── Payload file path (on the Pico's internal filesystem) ─────────────
 _PAYLOAD_PATH: str = "/payload.dd"
 _HIDDEN_PREFIX: str = "._"
+_LOOT_PATH: str = "/loot.bin"
 
 
 class PicoPlatform:
@@ -236,6 +306,8 @@ class PicoPlatform:
         self._hid_keyboard = Keyboard(usb_hid.devices)
         # ── HID mouse ─────────────────────────────────────────────
         self._mouse = _Mouse(usb_hid.devices)
+        # ── HID consumer control (media keys) ─────────────────────
+        self._cc = ConsumerControl(usb_hid.devices)
         try:
             self._current_layout = _load_layout("US")
         except ValueError:
@@ -348,6 +420,10 @@ class PicoPlatform:
 
     def press_key(self, modifiers: tuple[object, ...], key: object | None) -> None:
         """Press modifier(s) + optional key, then release all."""
+        _validate_media_key_press(key, modifiers)
+        if isinstance(key, ActionKey) and key in _MEDIA_ACTION_KEYS:
+            self._cc.send(_ACTION_KEY_MAP[key])
+            return
         kcs: list[int] = []
         kcs.extend(self._mod_keycodes_for(modifiers))
         if key is not None:
@@ -360,15 +436,28 @@ class PicoPlatform:
 
     def hold_key(self, key: object) -> None:
         """Press and hold a key."""
+        if isinstance(key, ActionKey) and key in _MEDIA_ACTION_KEYS:
+            self._cc.press(_ACTION_KEY_MAP[key])
+            return
         self._hid_keyboard.press(self._keycode_for(key))
 
     def release_key(self, key: object) -> None:
         """Release a previously held key."""
+        if isinstance(key, ActionKey) and key in _MEDIA_ACTION_KEYS:
+            self._cc.release(_ACTION_KEY_MAP[key])
+            return
         self._hid_keyboard.release(self._keycode_for(key))
 
     def release_all(self) -> None:
-        """Release all pressed keys immediately."""
+        """Release all pressed keys immediately (keyboard + consumer endpoints)."""
         self._hid_keyboard.release_all()
+        release = getattr(self._cc, "release_all", None)
+        if callable(release):
+            release()
+        else:
+            # Older adafruit_hid ConsumerControl lacks release_all —
+            # send a zeroed report to release any held media key.
+            self._cc.send(0)
 
     # ── Timing ───────────────────────────────────────────────────────
 
@@ -530,6 +619,19 @@ class PicoPlatform:
     def random_int(self, min_val: int, max_val: int) -> int:
         """Return a random integer in [*min_val*, *max_val*] (inclusive)."""
         return _RNG.randint(min_val, max_val)
+
+    # ── Exfiltration ────────────────────────────────────────────────
+
+    def exfil(self, data: str) -> None:
+        """Append *data* as one line to /loot.bin (EXFIL statement).
+
+        Follows the Hak5 append semantics: the file is never truncated and
+        persists across payload runs.  kducky writes human-readable ASCII
+        (decimal value + newline) since Hak5 leaves the byte encoding of
+        EXFIL output undocumented.
+        """
+        with open(_LOOT_PATH, "a") as loot_file:
+            loot_file.write(data + "\n")
 
     # ── Mouse ─────────────────────────────────────────────────────────
 

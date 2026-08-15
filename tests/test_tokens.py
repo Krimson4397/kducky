@@ -207,6 +207,18 @@ class TestTokenType:
             "F10",
             "F11",
             "F12",
+            "F13",
+            "F14",
+            "F15",
+            "F16",
+            "F17",
+            "F18",
+            "F19",
+            "F20",
+            "F21",
+            "F22",
+            "F23",
+            "F24",
             "KP_SLASH",
             "KP_ASTERISK",
             "KP_MINUS",
@@ -233,6 +245,13 @@ class TestTokenType:
             "PROPS",
             "UNDO",
             "PASTE",
+            "VOLUME_UP",
+            "VOLUME_DOWN",
+            "MUTE",
+            "PLAY_PAUSE",
+            "STOP",
+            "NEXT_TRACK",
+            "PREV_TRACK",
         ):
             assert hasattr(TokenType, name), f"Missing action-key token: {name}"
 
@@ -347,9 +366,21 @@ class TestActionKey:
             assert hasattr(ActionKey, name), f"Missing editing key: {name}"
 
     def test_function_keys_present(self) -> None:
-        for i in range(1, 13):
+        for i in range(1, 25):
             name = f"F{i}"
             assert hasattr(ActionKey, name), f"Missing function key: {name}"
+
+    def test_media_keys_present(self) -> None:
+        for name in (
+            "VOLUME_UP",
+            "VOLUME_DOWN",
+            "MUTE",
+            "PLAY_PAUSE",
+            "STOP",
+            "NEXT_TRACK",
+            "PREV_TRACK",
+        ):
+            assert hasattr(ActionKey, name), f"Missing media key: {name}"
 
     def test_numpad_present(self) -> None:
         for name in (

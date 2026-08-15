@@ -151,6 +151,43 @@ class TestKeyStmt:
             ("press_key", (), ActionKey.F1),
         ]
 
+    def test_key_press_f13(self) -> None:
+        """KeyStmt(F13) presses F13 (project extension)."""
+        platform = DesktopPlatform()
+        interpreter = Interpreter(platform)
+        script = Script((KeyStmt(ActionKey.F13),))
+        interpreter.interpret(script)
+        assert platform.calls == [
+            ("get_caps_lock",),
+            ("get_num_lock",),
+            ("get_scroll_lock",),
+            ("press_key", (), ActionKey.F13),
+        ]
+
+    def test_key_press_f24(self) -> None:
+        """KeyStmt(F24) presses F24 (project extension)."""
+        platform = DesktopPlatform()
+        interpreter = Interpreter(platform)
+        script = Script((KeyStmt(ActionKey.F24),))
+        interpreter.interpret(script)
+        assert ("press_key", (), ActionKey.F24) in platform.calls
+
+    def test_key_press_media_key(self) -> None:
+        """KeyStmt(VOLUME_UP) presses VOLUME_UP (project extension)."""
+        platform = DesktopPlatform()
+        interpreter = Interpreter(platform)
+        script = Script((KeyStmt(ActionKey.VOLUME_UP),))
+        interpreter.interpret(script)
+        assert ("press_key", (), ActionKey.VOLUME_UP) in platform.calls
+
+    def test_key_press_media_key_next_track(self) -> None:
+        """KeyStmt(NEXT_TRACK) presses NEXT_TRACK (project extension)."""
+        platform = DesktopPlatform()
+        interpreter = Interpreter(platform)
+        script = Script((KeyStmt(ActionKey.NEXT_TRACK),))
+        interpreter.interpret(script)
+        assert ("press_key", (), ActionKey.NEXT_TRACK) in platform.calls
+
 
 class TestComboStmt:
     """Modifier + key combos."""

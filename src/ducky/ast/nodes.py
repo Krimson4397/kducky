@@ -163,6 +163,15 @@ class InjectVarStmt(Stmt):
 
 
 @dataclass(frozen=True)
+class ExfilStmt(Stmt):
+    """EXFIL $name — append a variable's value to the loot.bin file."""
+
+    __slots__ = ("variable",)
+
+    variable: str
+
+
+@dataclass(frozen=True)
 class HoldStmt(Stmt):
     """Press and hold a key until released."""
 

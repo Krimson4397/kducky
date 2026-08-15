@@ -153,6 +153,7 @@ In a modifier combo, every token before the last is a modifier. The last token i
 - Multiple whitespace characters between tokens are collapsed to a single delimiter.
 - Blank lines are ignored.
 - Inside `STRING`/`STRINGLN`, content after the keyword is the text to type. Leading spaces after the keyword are stripped. Internal spaces are preserved. Trailing spaces are omitted.
+- Block mode (keyword followed by a newline, body runs until `END_STRING`/`END_STRINGLN`): `STRING` strips **all** leading whitespace per line and joins lines with no separator; `STRINGLN` strips only the **first tab** of each line and preserves all other whitespace (lines are joined with newlines).
 
 ### 1.11 Statement Delimiters
 
@@ -168,14 +169,11 @@ The following official DuckyScript 3 features are **not supported** in this impl
 
 - `RANDOM_LINE` — reading random lines from files
 - `RANDOM_STRING` — random string generation  
-- Embedded language blocks (`STRING_POWERSHELL`, `STRING_BATCH`, `STRING_BASH`, `STRING_JAVASCRIPT`, `STRING_PYTHON`, `STRING_RUBY`, `STRING_HTML`)
 - `REPLAY` command alias
 - `KEYCODE` raw HID injection (O.MG-specific)
 - `JIGGLER` (O.MG-specific)
 - `MOUSE` commands (O.MG-specific)
 - `REBOOT` (O.MG-specific)
-- `F13`–`F24` function keys
-- Media keys beyond basic set
 
 ### 1.14 Project Extensions
 
@@ -189,6 +187,10 @@ The following official DuckyScript 3 features are **not supported** in this impl
 | DUCKY_LANG   | `DUCKY_LANG <code>`    | Change keyboard layout at runtime                 |
 | LED_B        | `LED_B`                | Blue LED (on devices that support it)             |
 | EXTENSION    | `EXTENSION name ... END_EXTENSION` | Extension block (parsed but semantics are extension-specific) |
+| STRING_* blocks | `STRING_POWERSHELL ... END_STRING` (also `STRING_BATCH`, `STRING_BASH`, `STRING_JAVASCRIPT`, `STRING_PYTHON`, `STRING_RUBY`, `STRING_HTML`) | Embedded-language aliases for the `STRING` block. Not separate commands: identical runtime semantics to `STRING` — block text is joined (newlines ignored) and leading whitespace is stripped per line (§1.10). `STRINGLN_POWERSHELL`, `STRINGLN_BATCH`, `STRINGLN_BASH`, `STRINGLN_JAVASCRIPT`, `STRINGLN_PYTHON`, `STRINGLN_RUBY`, `STRINGLN_HTML` alias `STRINGLN` and close with `END_STRINGLN`; in block mode `STRINGLN` strips only the FIRST tab of each line and preserves all other whitespace (§1.10). A block must close with the terminator matching its variant — `STRING`/`STRING_*` require `END_STRING`, `STRINGLN`/`STRINGLN_*` require `END_STRINGLN`; a mismatched terminator is a lexer error. |
+| F13–F24      | `F13` … `F24`          | Function keys F13 through F24, sent via HID keyboard usage codes 0x68–0x73. |
+| Media keys   | `VOLUME_UP`, `VOLUME_DOWN`, `MUTE`, `PLAY_PAUSE`, `STOP`, `NEXT_TRACK`, `PREV_TRACK` | Basic media keys sent via the HID consumer-control endpoint. Usage codes: volume up 0xE9, volume down 0xEA, mute 0xE2, play/pause 0xCD, stop 0xB7, next track 0xB5, previous track 0xB6. Media keys cannot be combined with modifier keys (e.g. `CTRL VOLUME_UP`) — such a combo raises a runtime error (`ValueError`). |
+| EXFIL        | `EXFIL $var`           | Append a variable's value to `loot.bin` on the filesystem root (append-only; never truncated, persists across runs — matching Hak5's append semantics). kducky writes the value as ASCII decimal followed by a newline per call; Hak5 documents raw append but leaves the uint16 byte encoding unspecified, so the human-readable line format is a deliberate kducky choice. Unknown variable → runtime error. |
 
 ### 1.15 Known Deviations from Hak5
 

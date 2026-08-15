@@ -84,6 +84,100 @@ class TestStringStatements:
         assert not any(t.type == TokenType.STRING_BODY for t in result)
 
 
+class TestStringBlockAliases:
+    """STRING_* / STRINGLN_* embedded-language block aliases."""
+
+    def test_string_powershell_opens_block_mode(self) -> None:
+        """STRING_POWERSHELL … END_STRING behaves like a STRING block.
+
+        Note: the STRING_BODY token's line is the block's end line, matching
+        the pre-existing STRING block convention.
+        """
+        result = tokenize("STRING_POWERSHELL\nClear-Host;\nEND_STRING")
+        assert result[0] == tok(TokenType.STRING, "STRING_POWERSHELL")
+        assert result[1].type is TokenType.STRING_BODY
+        assert result[1].value == "Clear-Host;"
+        assert result[2].type is TokenType.NEWLINE
+        assert result[3].type is TokenType.EOF
+
+    def test_string_aliases_tokenize_as_string(self) -> None:
+        """Every STRING_* alias emits the STRING token type."""
+        for keyword in (
+            "STRING_POWERSHELL",
+            "STRING_BATCH",
+            "STRING_BASH",
+            "STRING_JAVASCRIPT",
+            "STRING_PYTHON",
+            "STRING_RUBY",
+            "STRING_HTML",
+        ):
+            result = tokenize(f"{keyword}\nbody\nEND_STRING")
+            assert result[0] == tok(TokenType.STRING, keyword), keyword
+
+    def test_stringln_aliases_tokenize_as_stringln(self) -> None:
+        """Every STRINGLN_* alias emits the STRINGLN token type."""
+        for keyword in (
+            "STRINGLN_POWERSHELL",
+            "STRINGLN_BATCH",
+            "STRINGLN_BASH",
+            "STRINGLN_JAVASCRIPT",
+            "STRINGLN_PYTHON",
+            "STRINGLN_RUBY",
+            "STRINGLN_HTML",
+        ):
+            result = tokenize(f"{keyword}\nbody\nEND_STRINGLN")
+            assert result[0] == tok(TokenType.STRINGLN, keyword), keyword
+
+    def test_string_alias_case_insensitive(self) -> None:
+        """Aliases are case-insensitive like all keywords.
+
+        Like the base STRING/STRINGLN keywords, the token value is the
+        canonical uppercase keyword.
+        """
+        result = tokenize("string_powershell\nhi\nend_string")
+        assert result[0] == tok(TokenType.STRING, "STRING_POWERSHELL")
+        assert result[1].value == "hi"
+
+    def test_string_alias_inline_body(self) -> None:
+        """Aliases with inline content produce a STRING_BODY token."""
+        result = tokenize("STRING_BASH echo hi")
+        assert result[0] == tok(TokenType.STRING, "STRING_BASH")
+        assert result[1] == tok(TokenType.STRING_BODY, "echo hi", col=13)
+
+    def test_string_alias_boundary(self) -> None:
+        """STRING_POWERSHELL2 is not the alias keyword (boundary check)."""
+        result = tokenize("STRING_POWERSHELL2")
+        assert result[0].type is TokenType.IDENTIFIER
+
+
+class TestStringLnBlockWhitespace:
+    """STRINGLN block mode strips only the first tab per line."""
+
+    def test_first_tab_stripped(self) -> None:
+        """A single leading tab is stripped from each line."""
+        result = tokenize("STRINGLN\n\thello\n\tworld\nEND_STRINGLN")
+        body = [t for t in result if t.type is TokenType.STRING_BODY][0]
+        assert body.value == "hello\nworld"
+
+    def test_second_tab_preserved(self) -> None:
+        """A second tab on a line is preserved."""
+        result = tokenize("STRINGLN\n\t\thello\nEND_STRINGLN")
+        body = [t for t in result if t.type is TokenType.STRING_BODY][0]
+        assert body.value == "\thello"
+
+    def test_leading_spaces_preserved(self) -> None:
+        """Leading spaces are preserved (only a tab is stripped)."""
+        result = tokenize("STRINGLN\n  hello\nEND_STRINGLN")
+        body = [t for t in result if t.type is TokenType.STRING_BODY][0]
+        assert body.value == "  hello"
+
+    def test_internal_spacing_preserved(self) -> None:
+        """Internal spacing and empty lines inside the block are preserved."""
+        result = tokenize("STRINGLN\n\thello world\n\t\n\tfoo\nEND_STRINGLN")
+        body = [t for t in result if t.type is TokenType.STRING_BODY][0]
+        assert body.value == "hello world\n\nfoo"
+
+
 class TestComments:
     """Comment stripping — REM, //, REM_BLOCK."""
 

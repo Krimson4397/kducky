@@ -51,11 +51,15 @@ if _HAS_PICO:
     _ACTION_KEY_MAP = _mod._ACTION_KEY_MAP
     _HAS_HW = _mod._HAS_HW
     _MODIFIER_KEY_MAP = _mod._MODIFIER_KEY_MAP
+    _MEDIA_ACTION_KEYS = _mod._MEDIA_ACTION_KEYS
+    _validate_media_key_press = _mod._validate_media_key_press
 else:
     PicoPlatform = None
     _ACTION_KEY_MAP = {}
     _HAS_HW = True
     _MODIFIER_KEY_MAP = {}
+    _MEDIA_ACTION_KEYS = frozenset()
+    _validate_media_key_press = None
 
 
 # ── Protocol method set (for completeness checks) ──────────────────────
@@ -226,3 +230,85 @@ class TestPicoPlatformLedState:
         assert LedState.R.name == "R"
         assert LedState.G.name == "G"
         assert LedState.B.name == "B"
+
+
+class _FakeKeyboard:
+    """Stand-in for ``adafruit_hid.keyboard.Keyboard``."""
+
+    def __init__(self) -> None:
+        self.release_all_calls = 0
+
+    def release_all(self) -> None:
+        self.release_all_calls += 1
+
+
+class _FakeConsumerControlWithReleaseAll:
+    """ConsumerControl that exposes ``release_all``."""
+
+    def __init__(self) -> None:
+        self.release_all_calls = 0
+
+    def release_all(self) -> None:
+        self.release_all_calls += 1
+
+
+class _FakeConsumerControlNoReleaseAll:
+    """Older ConsumerControl lacking ``release_all`` (only ``send``)."""
+
+    def __init__(self) -> None:
+        self.send_calls: list[int] = []
+
+    def send(self, code: int) -> None:
+        self.send_calls.append(code)
+
+
+class TestPicoPlatformReleaseAll:
+    """``release_all()`` must release both keyboard and consumer endpoints."""
+
+    def test_release_all_reaches_both_endpoints(self) -> None:
+        """Keyboard and consumer endpoints both receive ``release_all``."""
+        instance = object.__new__(PicoPlatform)
+        instance._hid_keyboard = _FakeKeyboard()
+        instance._cc = _FakeConsumerControlWithReleaseAll()
+        instance.release_all()
+        assert instance._hid_keyboard.release_all_calls == 1
+        assert instance._cc.release_all_calls == 1
+
+    def test_release_all_falls_back_to_zeroed_report(self) -> None:
+        """A ConsumerControl without ``release_all`` gets a zeroed send."""
+        instance = object.__new__(PicoPlatform)
+        instance._hid_keyboard = _FakeKeyboard()
+        instance._cc = _FakeConsumerControlNoReleaseAll()
+        instance.release_all()
+        assert instance._hid_keyboard.release_all_calls == 1
+        assert instance._cc.send_calls == [0]
+
+
+class TestMediaKeyGuard:
+    """Media keys cannot be combined with keyboard modifiers."""
+
+    def test_media_key_with_modifier_raises(self) -> None:
+        """A media key plus a modifier raises ``ValueError``."""
+        with pytest.raises(ValueError):
+            _validate_media_key_press(ActionKey.VOLUME_UP, (ModifierKey.CTRL,))
+
+    def test_media_key_alone_is_allowed(self) -> None:
+        """A media key without modifiers passes validation."""
+        _validate_media_key_press(ActionKey.VOLUME_UP, ())
+
+    def test_non_media_key_with_modifier_is_allowed(self) -> None:
+        """A normal key plus a modifier passes validation."""
+        _validate_media_key_press(ActionKey.ENTER, (ModifierKey.CTRL,))
+
+    def test_all_media_keys_classified(self) -> None:
+        """Every media ``ActionKey`` member is in ``_MEDIA_ACTION_KEYS``."""
+        expected = {
+            ActionKey.VOLUME_UP,
+            ActionKey.VOLUME_DOWN,
+            ActionKey.MUTE,
+            ActionKey.PLAY_PAUSE,
+            ActionKey.STOP,
+            ActionKey.NEXT_TRACK,
+            ActionKey.PREV_TRACK,
+        }
+        assert set(_MEDIA_ACTION_KEYS) == expected

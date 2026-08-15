@@ -26,6 +26,7 @@ from ducky.ast import (  # noqa: E402
     DollarIdentifierExpr,
     DuckyLangStmt,
     EnableButtonStmt,
+    ExfilStmt,
     Expr,
     ExtensionStmt,
     FunctionDef,
@@ -161,6 +162,25 @@ _TOKEN_TO_ACTION_KEY: dict[TokenType, ActionKey] = {
     TokenType.F10: ActionKey.F10,
     TokenType.F11: ActionKey.F11,
     TokenType.F12: ActionKey.F12,
+    TokenType.F13: ActionKey.F13,
+    TokenType.F14: ActionKey.F14,
+    TokenType.F15: ActionKey.F15,
+    TokenType.F16: ActionKey.F16,
+    TokenType.F17: ActionKey.F17,
+    TokenType.F18: ActionKey.F18,
+    TokenType.F19: ActionKey.F19,
+    TokenType.F20: ActionKey.F20,
+    TokenType.F21: ActionKey.F21,
+    TokenType.F22: ActionKey.F22,
+    TokenType.F23: ActionKey.F23,
+    TokenType.F24: ActionKey.F24,
+    TokenType.VOLUME_UP: ActionKey.VOLUME_UP,
+    TokenType.VOLUME_DOWN: ActionKey.VOLUME_DOWN,
+    TokenType.MUTE: ActionKey.MUTE,
+    TokenType.PLAY_PAUSE: ActionKey.PLAY_PAUSE,
+    TokenType.STOP: ActionKey.STOP,
+    TokenType.NEXT_TRACK: ActionKey.NEXT_TRACK,
+    TokenType.PREV_TRACK: ActionKey.PREV_TRACK,
     TokenType.KP_SLASH: ActionKey.KP_SLASH,
     TokenType.KP_ASTERISK: ActionKey.KP_ASTERISK,
     TokenType.KP_MINUS: ActionKey.KP_MINUS,
@@ -432,6 +452,8 @@ class DuckyParser:
             return self._parse_jitter_stmt()
         if token.type == TokenType.INJECT_VAR:
             return self._parse_inject_var_stmt()
+        if token.type == TokenType.EXFIL:
+            return self._parse_exfil_stmt()
 
         # ── Mouse ──
         if token.type in (
@@ -635,6 +657,18 @@ class DuckyParser:
         self._consume_newline()
         self._previous_stmt_was_block_end = False
         return InjectVarStmt(variable=name)
+
+    def _parse_exfil_stmt(self) -> ExfilStmt:
+        """EXFIL $name — append a variable's value to loot.bin."""
+        self._consume(TokenType.EXFIL, "Expected EXFIL")
+        name_token = self._consume(
+            TokenType.DOLLAR_IDENTIFIER,
+            "Expected $identifier after EXFIL",
+        )
+        name = name_token.value
+        self._consume_newline()
+        self._previous_stmt_was_block_end = False
+        return ExfilStmt(variable=name)
 
     def _parse_hold_stmt(self) -> HoldStmt:
         self._consume(TokenType.HOLD, "Expected HOLD")

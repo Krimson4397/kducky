@@ -792,10 +792,24 @@ class TestStatementEdgeCases:
             assert stmt.key.name == key_name
 
     def test_key_stmt_f_keys(self) -> None:
-        """All F1-F12 action keys parse correctly."""
-        for i in range(1, 13):
+        """All F1-F24 action keys parse correctly."""
+        for i in range(1, 25):
             stmt = assert_single_stmt(f"F{i}\n", KeyStmt)
             assert stmt.key.name == f"F{i}"
+
+    def test_key_stmt_media_keys(self) -> None:
+        """All media keys parse as KeyStmt with the right ActionKey."""
+        for key_name in (
+            "VOLUME_UP",
+            "VOLUME_DOWN",
+            "MUTE",
+            "PLAY_PAUSE",
+            "STOP",
+            "NEXT_TRACK",
+            "PREV_TRACK",
+        ):
+            stmt = assert_single_stmt(f"{key_name}\n", KeyStmt)
+            assert stmt.key.name == key_name
 
     def test_combo_with_gui(self) -> None:
         """GUI modifier key works in combo."""

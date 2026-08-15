@@ -165,6 +165,12 @@ class PlatformInterface(Protocol):
         """Return a random integer in [*min_val*, *max_val*] (inclusive)."""
         ...
 
+    # ── Exfiltration ─────────────────────────────────────────────────
+
+    def exfil(self, data: str) -> None:
+        """Append *data* as one line to the loot.bin exfiltration file."""
+        ...
+
     # ── Mouse ────────────────────────────────────────────────────────
 
     def mouse_move(self, x: int, y: int) -> None:

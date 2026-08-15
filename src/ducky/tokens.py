@@ -122,6 +122,7 @@ class TokenType:
     REPLAY = auto()   # restart current payload
     JITTER = auto()   # random keystroke delay
     INJECT_VAR = auto()  # type variable's value as keystrokes
+    EXFIL = auto()    # append a variable's value to loot.bin
     ON = auto()       # JITTER ON
     OFF = auto()      # JITTER OFF
 
@@ -229,6 +230,18 @@ class TokenType:
     F10 = auto()
     F11 = auto()
     F12 = auto()
+    F13 = auto()
+    F14 = auto()
+    F15 = auto()
+    F16 = auto()
+    F17 = auto()
+    F18 = auto()
+    F19 = auto()
+    F20 = auto()
+    F21 = auto()
+    F22 = auto()
+    F23 = auto()
+    F24 = auto()
     KP_SLASH = auto()
     KP_ASTERISK = auto()
     KP_MINUS = auto()
@@ -255,6 +268,15 @@ class TokenType:
     PROPS = auto()
     UNDO = auto()
     PASTE = auto()
+
+    # ── Media keys (project extension) ───────────────────────────
+    VOLUME_UP = auto()
+    VOLUME_DOWN = auto()
+    MUTE = auto()
+    PLAY_PAUSE = auto()
+    STOP = auto()
+    NEXT_TRACK = auto()
+    PREV_TRACK = auto()
 
 
 class Token:
@@ -388,6 +410,18 @@ class ActionKey:
     F10 = "F10"
     F11 = "F11"
     F12 = "F12"
+    F13 = "F13"
+    F14 = "F14"
+    F15 = "F15"
+    F16 = "F16"
+    F17 = "F17"
+    F18 = "F18"
+    F19 = "F19"
+    F20 = "F20"
+    F21 = "F21"
+    F22 = "F22"
+    F23 = "F23"
+    F24 = "F24"
 
     # ── Numpad ────────────────────────────────────────────────────
     KP_SLASH = "KP_SLASH"
@@ -418,3 +452,12 @@ class ActionKey:
     PROPS = "PROPS"
     UNDO = "UNDO"
     PASTE = "PASTE"
+
+    # ── Media keys (project extension) ────────────────────────────
+    VOLUME_UP = "VOLUME_UP"
+    VOLUME_DOWN = "VOLUME_DOWN"
+    MUTE = "MUTE"
+    PLAY_PAUSE = "PLAY_PAUSE"
+    STOP = "STOP"
+    NEXT_TRACK = "NEXT_TRACK"
+    PREV_TRACK = "PREV_TRACK"

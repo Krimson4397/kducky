@@ -176,3 +176,20 @@ class TestDesktopPlatform:
         assert platform.calls[0][0] == "random_int"
         assert platform.calls[0][1] == 1
         assert platform.calls[0][2] == 6
+
+    def test_exfil_records_call(self) -> None:
+        platform = DesktopPlatform()
+        platform.exfil("1337")
+        assert platform.calls[0] == ("exfil", "1337")
+
+    def test_exfil_writes_file_when_configured(self, tmp_path) -> None:
+        loot = tmp_path / "loot.bin"
+        platform = DesktopPlatform(loot_path=str(loot))
+        platform.exfil("42")
+        platform.exfil("99")
+        assert loot.read_text(encoding="utf-8") == "42\n99\n"
+
+    def test_exfil_no_file_without_loot_path(self) -> None:
+        platform = DesktopPlatform()
+        platform.exfil("42")
+        assert platform.calls[0] == ("exfil", "42")
