@@ -1,5 +1,7 @@
 # kducky
+<p align="center"> <a href="https://www.youtube.com/watch?v=gdXXOYqnnxM"> <img src="https://img.youtube.com/vi/gdXXOYqnnxM/maxresdefault.jpg" alt="Kducky Demo" width="100%"> </a> </p>
 
+<p align="center"> <strong>▶ Click the video above to watch the Kducky demo</strong> </p>
 DuckyScript 3 Interpreter for **Raspberry Pi Pico 2 W** (RP2350) · CircuitPython 10.x
 
 Run USB Rubber Ducky payloads from a $6 microcontroller that appears as a
